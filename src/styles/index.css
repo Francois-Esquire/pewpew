@@ -1,0 +1,36 @@
+@import 'app';
+@import 'modal';
+
+* {
+  box-sizing: border-box;
+  z-index: inherit;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizelegibility;
+  font-family: --apple-system, Helvetica, sans-serif;
+}
+
+body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  color: #222222;
+}
+
+ul li { list-style-type: none; }
+
+a {
+  color: inherit;
+  text-decoration: inherit;
+  transition: 120ms cubic-bezier(0.1, 0.6, 0.5, 1) all;
+}
+
+button, a, input, textarea { &:focus { outline: none; } }

@@ -1,0 +1,25 @@
+subscription Channel($id: String!, $limit: Int, $types: [Types]) {
+  channel(id: $id) {
+    id
+    by
+    url
+    title
+    description
+    tags
+    members {
+      id
+      handle
+      avatar
+    }
+    present: Int
+    moments(
+      limit: $limit,
+      types: $types
+      ): {
+        id
+        by
+        type
+        content
+      }
+  }
+}

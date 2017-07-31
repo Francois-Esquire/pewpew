@@ -1,0 +1,49 @@
+{
+  "presets": ["react", "stage-0"],
+  "plugins": [
+    "minify-simplify",
+    "minify-infinity",
+    "minify-flip-comparisons",
+    "minify-constant-folding",
+    "minify-type-constructors",
+    "minify-guarded-expressions",
+    "minify-dead-code-elimination",
+    "transform-merge-sibling-variables",
+    "transform-simplify-comparison-operators",
+    "transform-member-expression-literals",
+    "transform-property-literals",
+    "transform-undefined-to-void",
+    "transform-minify-booleans"
+  ],
+  "env": {
+    "development": {
+      "plugins": ["react-hot-loader/babel"]
+    },
+    "production": {
+      "presets": [["env", {
+        "forceAllTransforms": false,
+        "useBuiltIns": true,
+        "spec": true,
+        "debug": false,
+        "targets": {
+          "browsers": "last 3 versions"
+        },
+        "plugins": [
+          ["minify-replace", {
+            "replacements": [{
+              "identifierName": "process.env.NODE_ENV",
+              "replacement": {
+                "type": "booleanLiteral",
+                "value": true
+              }
+            }]
+          }]
+        ],
+        "exclude": [
+          "transform-regenerator",
+          "es7.string.pad-start",
+          "es7.string.pad-end"]
+        }]],
+    }
+  }
+}

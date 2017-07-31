@@ -1,0 +1,66 @@
+main#view {
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: stretch;
+  width: 100vw;
+  /*height: 100vh;*/
+  & > * { flex: 0 0 auto; }
+  & > footer {
+    display: inherit;
+    flex-flow: row nowrap;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+main#view > section {
+  flex: 1 1 auto;
+  display: inherit;
+  min-height: 100vh;
+  padding: 1em;
+  background: #2bc0da;
+  color: #fff;
+
+  &.home {
+    flex-flow: column nowrap;
+    justify-content: space-around;
+    background: linear-gradient(#2bc0da, #7659d0);
+    & > header h1 {
+      font-weight: normal;
+      /*text-indent: 1em;*/
+    }
+    & img {
+      width: 50%;
+      margin: 0 auto;
+    }
+    & > form {
+      height: 25%;
+      display: inherit;
+      flex-flow: row nowrap;
+      justify-content: center;
+      align-items: center;
+      font-size: 1em;
+      & > input { margin: 0 0.5em; }
+      & label { font-size: 1.5em; }
+      & input, & button {
+        font-size: inherit;
+        border: none;
+        background: none;
+        color: #fff;
+      }
+    }
+  }
+
+  &.nexus {
+    & > header {
+      align-self: flex-start;
+      display: inherit;
+      flex-flow: row nowrap;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      & img { height: 10vh; }
+      & > * { width: 50%; text-align: center; font-weight: normal; }
+    }
+  }
+}

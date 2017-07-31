@@ -1,0 +1,6 @@
+mutation CreateHandle($handle: String!) {
+  createHandle(handle: $handle) {
+    id
+    session
+  }
+}

@@ -1,0 +1,147 @@
+scalar URL
+
+interface Node {
+  id: ID!
+}
+
+interface User {
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments: [Moment]
+}
+
+type Author implements Node, User {
+  id: ID!
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments: [Moment]
+  email: String
+}
+
+type Contributor implements Node, User {
+  id: ID!
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments: [Moment]
+}
+
+type Channel implements Node {
+  id: ID!
+  by: ID!
+  url: URL!
+  title: String
+  description: String
+  tags: [String]
+  members: [Contributor]
+  present: Int
+  moments(
+    limit: Int = 64,
+    types: [Types]
+    ): [Moment]
+}
+
+interface Moment {
+  id: ID!
+  by: ID!
+  type: Types!
+  content: Content!
+}
+
+type Content {
+  media: ID
+  text: String
+  url: URL
+}
+
+enum Types {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  LINK
+}
+
+type Post implements Moment {
+  id: ID!
+  by: ID!
+  type: Types!
+  content: Content!
+  reactions: [Post]
+}
+
+type Query {
+  tasks: [String]
+  me: Author
+  author(
+    id: ID
+    ): Contributor
+  channels(
+    limit: Int
+    ): [Channel]
+  # moments(): [Moment]
+}
+
+type Mutation {
+  join(
+    handle: String!
+    channel: ID
+    ): Contributor
+  signup(
+    email: String!
+    handle: String!
+    password: String!
+    ): Author
+  login(
+    handle: String!
+    password: String!
+    ): Author
+  logout(
+    session: String
+    ): Author
+  changePassword(
+    password: String!
+    ): Author
+  changeHandle(
+    handle: String!
+    ): Author
+  changeEmail(
+    email: String!
+    ): Author
+  deleteAccount(): Author
+
+  publishChannel(
+    url: String!
+    title: String
+    ): Channel
+  updateChannel(
+    id: ID!
+    ): Channel
+  releaseChannel(
+    id: ID!
+    ): Channel
+
+  remember(
+    
+    ): Moment
+  forget(
+    
+    ): Moment
+}
+
+type Subscription {
+  moments(
+    channels: [ID]
+    ): Moment
+  channel(
+    id: ID!
+    ): Channel
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}

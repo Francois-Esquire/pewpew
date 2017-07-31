@@ -1,0 +1,145 @@
+scalar URL
+
+interface Node {
+  id: ID!
+}
+
+interface User {
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments: [Post]
+}
+
+type Author implements Node, User {
+  id: ID!
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments: [Post]
+  email: String
+}
+
+type Contributor implements Node, User {
+  id: ID!
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments: [Post]
+}
+
+type Channel implements Node {
+  id: ID!
+  by: ID!
+  url: URL!
+  title: String
+  description: String
+  tags: [String]
+  members: [Contributor]
+  present: Int
+  moments(
+    limit: Int = 64,
+    kinds: [Types]
+    ): [Post]
+}
+
+interface Moment {
+  id: ID!
+  by: ID!
+  kind: Types!
+  content: String!
+}
+
+enum Types {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  LINK
+}
+
+type Post implements Moment {
+  id: ID!
+  by: ID!
+  kind: Types!
+  content: String!
+  reactions: [Post]
+}
+
+type Query {
+  tasks: [String]
+  me: Author
+  author(
+    id: ID
+    ): Contributor
+  channel(
+    id: ID
+    ): Channel
+  channels(
+    limit: Int = 16
+    ): [Channel]
+}
+
+type Mutation {
+  join(
+    handle: String!
+    ): Contributor
+  signup(
+    email: String!
+    handle: String!
+    password: String!
+    ): Author
+  login(
+    handle: String!
+    password: String!
+    ): Author
+  logout(
+    session: String
+    ): Boolean
+  changePassword(
+    pass: String!
+    word: String!
+    ): Boolean
+  changeHandle(
+    handle: String!
+    ): Boolean
+  changeEmail(
+    email: String!
+    ): Boolean
+  deleteAccount: Boolean
+
+  publishChannel(
+    url: String!
+    title: String
+    ): Channel
+  updateChannel(
+    id: ID!
+    ): Channel
+  deleteChannel(
+    id: ID!
+    ): Boolean
+
+  remember(
+    channel: String!
+    content: String!
+    kind: String!
+    ): Moment
+  forget(
+    id: String!
+    ): Moment
+}
+
+type Subscription {
+  moments(
+    channel: ID!
+    ): Moment
+  channel(
+    id: ID!
+    ): Channel
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}

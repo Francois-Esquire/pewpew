@@ -1,0 +1,14 @@
+query Moi {
+  me {
+    id
+    email
+    handle
+    avatar
+    channels {
+      id
+    }
+    moments {
+      id
+    }
+  }
+}
