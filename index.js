@@ -127,11 +127,8 @@ try {
 
     Object.keys(stats.assetsByChunkName)
       .forEach(chunk => stats.assetsByChunkName[chunk].forEach((asset) => {
-        if (/js\//.test(asset)) {
-          if (chunk === 'manifest') {
-            manifest.push(fs.readFileSync(`${process.cwd()}/dist/public/${asset}`));
-          } else scripts.push(asset);
-        } else if (/css\//.test(asset)) css.push(asset);
+        if (/js\//.test(asset)) scripts.push(asset);
+        else if (/css\//.test(asset)) css.push(asset);
       }));
 
     server({
@@ -141,6 +138,7 @@ try {
     });
   }
 } catch (error) {
+  // check for mongo is running locally as well.
   if (error.code === 'MODULE_NOT_FOUND') {
     // eslint-disable-next-line no-console
     console.warn('\n/***/\nPlease make sure to fire "npm install && npm run build" to kickstart the project.\n/***/\n');
