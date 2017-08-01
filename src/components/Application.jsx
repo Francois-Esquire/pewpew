@@ -35,7 +35,6 @@ class Application extends React.PureComponent {
           path="/"
           render={() => (<section className="home">
             <img width="50%" src="/images/pewpew.svg" alt="Pew Pew" />
-            {/* <h1>Tune in on your interests</h1> */}
             <form
               id="channel"
               onSubmit={(event) => {
@@ -47,6 +46,7 @@ class Application extends React.PureComponent {
                 id="remote"
                 type="text"
                 value={channel.url}
+                placeholder="Tune in to..."
                 onChange={({ target: { value } }) => channel.change(value.toLowerCase())} />
               <button type="submit">Go</button>
             </form>
@@ -56,7 +56,7 @@ class Application extends React.PureComponent {
           render={({ match: { params } }) => (<Nexus channel={params.channel} />)} />
       </Switch>
       <footer>
-        <h6><a href="https://github.com/Francois-Esquire/pewpew">Look Under The Hood - github</a></h6>
+        <h6><a href="https://github.com/Francois-Esquire/pewpew">github</a></h6>
       </footer>
       <ReactModal
         contentLabel={modal.label}

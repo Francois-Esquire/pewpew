@@ -24,68 +24,14 @@ var multerGridfsStorage = require('multer-gridfs-storage');
 var microseconds = require('microseconds');
 
 const ID = mongoose.Schema.Types.ObjectId;
-const NotificationSchema = new mongoose.Schema({
-  to: String,
-  content: String,
-  viewed: [{ id: ID, when: Number }],
-  priority: {
-    type: String,
-    enum: {
-      message: 'enum validator failed for path `{PATH}` with value `{VALUE}`',
-      values: ['PROMPT', 'ALERT', 'URGENT']
-    },
-    default: 'PROMPT'
-  },
-  subject: {
-    type: String,
-    enum: {
-      message: 'enum validator failed for path `{PATH}` with value `{VALUE}`',
-      values: ['TICKET', 'ASSIGNMENT', 'MESSAGE', 'APPLICATION', 'ANNOUNCEMENT']
-    }
-  },
-  action: {
-    type: String,
-    enum: {
-      message: 'enum validator failed for path `{PATH}` with value `{VALUE}`',
-      values: ['RECEIVED', 'NOTIFIED', 'APPLIED', 'RESOLVED']
-    }
-  },
-  issued: Number
-}, {
-  skipVersioning: !0
-});
-NotificationSchema.pre('save', function (next) {
-  return this.isNew && (this.issued = Date.now()), next();
-}), NotificationSchema.virtual('note', {
-  get() {
-    const { subject, action, content } = this;
-    return `${subject}:${action}:${content}`;
-  }
-}), NotificationSchema.statics = {
-  findNotesByUser(to) {
-    this.find({ to });
-  },
-  async createNote(to, subject, action, content) {
-    const Note = this;
-    const notify = await new Note({ to, subject, action, content }).save();
-    return notify;
-  }
-}, NotificationSchema.methods = {
-  markRead() {
-    return this.viewed = Date.now(), this.save();
-  }
-};
-const Notification = mongoose.model('Notification', NotificationSchema);
-
-const ID$1 = mongoose.Schema.Types.ObjectId;
-const MessageSchema = new mongoose.Schema({
+const PostSchema = new mongoose.Schema({
   by: {
-    type: ID$1,
+    type: ID,
     ref: 'User',
     required: !0
   },
-  thread: {
-    type: ID$1,
+  channel: {
+    type: ID,
     ref: 'Thread',
     required: !0
   },
@@ -95,78 +41,55 @@ const MessageSchema = new mongoose.Schema({
     minlength: 1,
     trim: !0
   },
-  draft: Boolean,
-  edited: [Number]
+  kind: String
 }, {
   toObject: {
     getters: !1,
     virtuals: !0
   }
 });
-MessageSchema.virtual('createdAt').get(function () {
+PostSchema.virtual('createdAt').get(function () {
+  // eslint-disable-next-line no-underscore-dangle
   return this._id.getTimestamp();
-}), MessageSchema.pre('save', function (next) {
-  if (this.isModified('content') && !this.isNew) {
-    const now = Date.now();
-    this.edited ? this.edited.push(now) : this.edited = [now];
-  }
-  return next();
-}), MessageSchema.statics = {
+}), PostSchema.statics = {
   findMessage(id) {
     return this.findById(id);
   },
-  findByThread(thread) {
-    return this.find({ thread });
+  findByChannel(channel) {
+    return this.find({ channel });
   },
   findByUserId(by) {
     return this.find({ by });
   },
-  async checkOwnership(by, id) {
-    const msg = await this.findMessage(id);
-    return msg.by === by ? msg : new Error('Unauthorized');
+  async create(by, channel, content, kind) {
+    const Moment = this;
+    const moment = await new Moment({ by, channel, content, kind }).save();
+    return moment;
   },
-  async create(by, thread, content) {
-    const Msg = this;
-    const msg = await new Msg({ by, thread, content }).save();
-    return msg;
-  },
-  async edit(id, content) {
-    const msg = await this.findMessage(id);
-    return msg.edit(content);
-  },
-  async erase(id) {
-    const doc = await this.findByIdAndRemove(id);
-    return doc;
-  }
-}, MessageSchema.methods = {
-  async edit(content) {
-    return this.content = content, await this.save(), this;
-  },
-  async erase() {
-    const msg = this.toObject();
-    return await this.remove(), msg;
+  async forget(id, user) {
+    const moment = await this.findMessage(id);
+    return !(moment.by !== user.id) && (moment.remove(), !0);
   }
 };
-const Message = mongoose.model('Message', MessageSchema);
+const Post = mongoose.model('Post', PostSchema);
 
 const AuthorSchema = new mongoose.Schema({
   handle: String,
   avatar: String
-}, { _id: !1 });
-const FlagSchema = new mongoose.Schema({
-  guests: Boolean
 }, { _id: !1 });
 const ChannelSchema = new mongoose.Schema({
   by: String,
   url: String,
   title: String,
   description: String,
-  members: [AuthorSchema],
-  authors: [AuthorSchema],
-  moderators: [AuthorSchema],
-  flags: [FlagSchema],
-  private: Boolean
+  members: [AuthorSchema]
 });
+ChannelSchema.statics = {
+  search() {},
+  publish() {},
+  update() {},
+  delete() {}
+}, ChannelSchema.methods = {};
 const Channel = mongoose.model('Channel', ChannelSchema);
 
 const UserSchema = new mongoose.Schema({
@@ -181,11 +104,11 @@ const UserSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: !0,
     trim: !0,
     minlength: 1,
     lowercase: !0,
     unique: !0,
+    sparse: !0,
     validate: {
       validator: email => validator.isEmail(email),
       message: '{VALUE} is not a valid email.'
@@ -195,44 +118,49 @@ const UserSchema = new mongoose.Schema({
 });
 UserSchema.pre('save', function (next) {
   const user = this;
-  return user.isModified('password') ? void bcryptNodejs.genSalt(10, (err, salt) => {
+  user.isModified('password') ? bcryptNodejs.genSalt(10, (err, salt) => {
     return err ? next(err) : void bcryptNodejs.hash(user.password, salt, null, (err, hash) => {
       return err ? next(err) : void (user.password = hash, next());
     });
   }) : next();
 }), UserSchema.statics = {
+  join() {},
+  createUser() {},
+  login() {},
   setPassword(_id, password) {
     return this.findById(_id).then(user => user.setPassword(password));
   },
   changePassword(_id, { pass, word }) {
-    return this.findById(_id).then(user => user.changePassword(oldPassword, password));
+    return this.findById(_id).then(user => user.changePassword(pass, word));
   },
   changeHandle(_id, handle) {
     return this.findById(_id).then(user => user.changeHandle(handle));
   },
   changeEmail(_id, email) {
     return this.findById(_id).then(user => user.changeEmail(email));
+  },
+  deleteAccount(_id) {
+    return this.findById(_id).then(user => user.deleteAccount());
   }
 }, UserSchema.methods = {
+  logout(ctx) {
+    return ctx.session.token = null, !0;
+  },
+  async changePassword(oldPassword, password) {
+    const isMatch = await this.comparePassword(oldPassword);
+    return isMatch ? (this.password = password, await this.save(), !0) : new Error('Wrong password.');
+  },
+  async changeHandle(handle) {
+    return this.handle = handle, await this.save(), !0;
+  },
+  async changeEmail(email) {
+    return this.email = email, await this.save(), !0;
+  },
+  async deleteAccount() {
+    return await this.remove(), !0;
+  },
   comparePassword(candidatePassword) {
     return new Promise((resolve, reject) => bcryptNodejs.compare(candidatePassword, this.password, (error, isMatch) => error ? reject(error) : resolve(isMatch)));
-  },
-  setPassword(password) {
-    return this.password = password, this.save();
-  },
-  changePassword(oldPassword, password) {
-    const user = this;
-    return new Promise((resolve, reject) => user.comparePassword(oldPassword).then(isMatch => isMatch ? user.password = password && user.save(error => error ? reject(error) : resolve(user)) : reject(new Error('Wrong password.'))).catch(reject));
-  },
-  changeEmail(email) {
-    return new Promise((resolve, reject) => {
-      return this.email = email, this.save(error => error ? reject(error) : resolve(this));
-    });
-  },
-  changeHandle(handle) {
-    return new Promise((resolve, reject) => {
-      return this.handle = handle, this.save(error => error ? reject(error) : resolve(this));
-    });
   }
 };
 const User = mongoose.model('User', UserSchema);
@@ -273,188 +201,49 @@ interface Node {
 }
 
 interface User {
-  handle: String
+  handle: String!
   avatar: URL
   channels: [Channel]
-  moments: [Moment]
+  moments(channel: ID): [Post]
 }
 
 type Author implements Node, User {
   id: ID!
-  handle: String
+  handle: String!
   avatar: URL
   channels: [Channel]
-  moments: [Moment]
+  moments(channel: ID): [Post]
   email: String
 }
 
-type Contributor implements User {
-  handle: String
+type Contributor implements Node, User {
+  id: ID!
+  handle: String!
   avatar: URL
   channels: [Channel]
-  moments: [Moment]
+  moments(channel: ID): [Post]
 }
 
-interface Element {
+type Channel implements Node {
   id: ID!
   by: ID!
-  flags: [Flag]
-  audience: Audience
-}
-
-type Audience {
-  # if scoped, only the author and contributor can see any form of contribution
-  scoped: Boolean
-}
-
-type Flag {
-  id: ID!
-  by: ID!
-  reasons: [Flags]
-}
-
-enum Flags {
-  NSFW
-  HAZARD
-  INAPPROPRIATE
-  COPYRIGHT
-  SENSITIVE
-  PLAGERISM
-  MALWARE
-  SPAM
-}
-
-# Libraries -
-# Applets - diagrams, surveys
-# Bots -
-
-interface Space {
-  id: ID!
-  by: ID!
+  url: URL!
   title: String
   description: String
-  anchors: [String]
-  flags: [Flag]
-  moments: [Moment]
-  members: [Author]
-  authors: [Author]
-  moderators: [Author]
-  extensions: [Extensions]
-  preference: Preferences
-  audience: Audience
-}
-
-type Preferences {
-  #invite-only, members can be shown or not - or depends on user prefs.
-  # private channels can allow voyeurs and also allow requests to join.
-  private: Boolean
-  voyeurs: Boolean
-  requests: Boolean
-  extensions: [Extensions]
-  types: [Types]
-}
-
-type Channel implements Space {
-  id: ID!
-  by: ID!
-  url: URL! #consider reserved urls and site urls
-  title: String
-  description: String
-  anchors: [String]
-  flags(
-    filter: [Flags]
-    ): [Flag]
-  # members and authors cannot upgrade, but authors and moderators can step down.
-  # only owner can reclaim.
-  members: [Author]
-  authors: [Author]
-  moderators: [Author]
-  extensions: [Extensions]
-  preference: Preferences
-  audience: Audience
-  # currently online
-  streams: Int
-  branches: [Branch]
-  present: [Author]
+  tags: [String]
+  members: [Contributor]
+  present: Int
   moments(
     limit: Int = 64,
-    types: [Types]
-    ): [Moment]
-}
-
-# branches start and end with a hash tag (# branch #)
-type Branch implements Space {
-  channel: ID!
-  id: ID!
-  by: ID!
-  title: String
-  description: String
-  anchors: [String]
-  flags: [Flag]
-  moments: [Moment]
-  members: [Author]
-  authors: [Author]
-  moderators: [Author]
-  extensions: [Extensions]
-  preference: Preferences
-  audience: Audience
+    kinds: [Types]
+    ): [Post]
 }
 
 interface Moment {
   id: ID!
   by: ID!
-  flags: [Flag]
-  audience: Audience
-  context: Contexts!
-  type: Types!
-  content: Content!
-  # markers: Marking
-}
-
-type Marking {
-  created: Int
-  deleted: Int
-  edited: Int
-  # coords
-  position: [Float]
-  # movement in physical space
-  # depending on media type, creates a timeline of movement
-  trail: [Float]
-}
-
-type Content {
-  media: ID
-  file: ID
-  text: String
-  url: URL
-  event: Events
-  reaction: Reactions
-  extension: Extension
-}
-
-type Extension {
-  module: Extensions
-}
-
-enum Contexts {
-  SPACE
-  CHANNEL
-  ELEMENT
-  MOMENT
-}
-
-enum Events {
-  EVT
-}
-
-enum Extensions {
-  STREAM
-  HALOGRAM
-  DATAGRAM
-  SURVEY
-  MORSE
-  QUIZ
-  BOT
+  kind: Types!
+  content: String!
 }
 
 enum Types {
@@ -463,49 +252,15 @@ enum Types {
   VIDEO
   AUDIO
   LINK
-  FILE
-  EXTENSION
-  REACTION
-  EVENT
-  SPACE
-}
-
-enum Reactions {
-  PEW
-  PEWPEW
-  PEWPEWPEW
-  SHARE
-  HEART
-  LIKE
-  INPUT
-  CHAR
 }
 
 type Post implements Moment {
   id: ID!
   by: ID!
-  flags: [Flag]
-  audience: Audience
-  context: Contexts!
-  type: Types!
-  content: Content!
-  # markers: Marker
-
-  id: ID!
-  by: ID!
-  flags: [Flag]
-  type: Types!
-  content: Content!
-  doc: ID!
-  reactions: Int
-  private: Boolean
-}
-
-enum Services {
-  facebook
-  google
-  github
-  twitter
+  kind: Types!
+  content: String!
+  reactions: [Post]
+  channel: ID!
 }
 
 type Query {
@@ -513,18 +268,18 @@ type Query {
   me: Author
   author(
     id: ID
-    ): Author
+    ): Contributor
+  channel(
+    id: ID
+    ): Channel
   channels(
-    ids: [ID]
-    limit: Int
+    limit: Int = 16
     ): [Channel]
-  # moments(): [Moment]
 }
 
 type Mutation {
   join(
     handle: String!
-    channel: ID
     ): Contributor
   signup(
     email: String!
@@ -532,48 +287,51 @@ type Mutation {
     password: String!
     ): Author
   login(
-    user: String!
+    handle: String!
     password: String!
     ): Author
   logout(
     session: String
-    ): Author
-  # verifyEmail(): Author
-  # recoverAccount(): Author
-  # signPassword(): Author
-  # changePassword(): Author
-  # changeHandle(): Author
-  # changeEmail(): Author
-  # deleteAccount(): Author
+    ): Boolean
+  changePassword(
+    pass: String!
+    word: String!
+    ): Boolean
+  changeHandle(
+    handle: String!
+    ): Boolean
+  changeEmail(
+    email: String!
+    ): Boolean
+  deleteAccount: Boolean
 
   publishChannel(
     url: String!
     title: String
     ): Channel
-  # updateChannel(): Channel
-  # releaseChannel(): Channel
+  updateChannel(
+    id: ID!
+    ): Channel
+  deleteChannel(
+    id: ID!
+    ): Boolean
 
-  # remember(): Moment
-  # forget(): Moment
-
-  decorateElement(
-    id: ID
-    # reactions to moment / chennel / branch / author
-    ): Element
-  raiseFlag(
-    # target # id - moment / chennel / branch / author
-    flag: [Flags]
-    ): Flag
+  remember(
+    channel: String!
+    content: String!
+    kind: String!
+    ): Moment
+  forget(
+    id: String!
+    ): Moment
 }
 
 type Subscription {
   moments(
-    channels: [ID]
+    channel: ID!
     ): Moment
   channel(
     id: ID!
-    branches: [ID]
-    moments: [ID]
     ): Channel
 }
 
@@ -595,8 +353,7 @@ const { makeExecutableSchema } = graphqlTools;
 const { withFilter, PubSub } = graphqlSubscriptions;
 const Users = mongoose.model('User');
 const Channels = mongoose.model('Channel');
-const Messages = mongoose.model('Message');
-const Notifications = mongoose.model('Notification');
+const Posts = mongoose.model('Post');
 const pubsub = new PubSub();
 ['publish', 'subscribe', 'unsubscribe', 'asyncIterator'].forEach(key => {
   pubsub[key] = pubsub[key].bind(pubsub);
@@ -606,16 +363,62 @@ const resolvers = {
   URL: {},
   Query: {
     tasks: root => root.tasks.concat('graphql'),
-    me: root => root.user
+    me: root => root.user,
+    author: async (root, args) => {
+      const { id } = args;
+      const user = await Users.findOne(id);
+      return user;
+    },
+    channel: async (root, { id }) => Channels.findOne(id),
+    channels: async (root, { limit }) => Channels.search(limit)
   },
   Mutation: {
-    async signup(root, args) {
-      const { email, password } = args;
-      const user = await Users.createUser(email, password);
-      return user.format('session', { method: 'signup' });
+    async join(root, args, ctx) {
+      if (root.user) return root.user;
+      const { handle } = args;
+      const user = await Users.join(handle, ctx);
+      return user;
+    },
+    async signup(root, args, ctx) {
+      if (root.user) return root.user;
+      const { handle, email, password } = args;
+      const user = await Users.createUser(handle, email, password, ctx);
+      return user;
+    },
+    async login(root, args, ctx) {
+      if (root.user) return root.user;
+      const { handle, password } = args;
+      const user = await Users.loginUser(handle, password, ctx);
+      return user;
+    },
+    logout: (root, args, ctx) => root.user && root.user.logout(ctx),
+    changePassword: (root, { pass, word }) => root.user && root.user.changePassword(pass, word),
+    changeHandle: (root, { handle }) => root.user && root.user.changeHandle(handle),
+    changeEmail: (root, { email }) => root.user && root.user.changeEmail(email),
+    deleteAccount: root => root.user && root.user.deleteAccount(),
+    publishChannel: (root, { url, title }) => root.user && Channels.publish(url, title, root.user),
+    updateChannel: (root, { id }) => root.user && Channels.update(id, root.user),
+    deleteChannel: (root, { id }) => root.user && Channels.delete(id, root.user),
+    async remember(root, { channel, content, kind }) {
+      if (root.user) {
+        const memory = await Posts.create(root.user.id, channel, content, kind);
+        pubsub.publish('memory', { memory });
+      }
+    },
+    async forget(root, { id }) {
+      if (root.user) {
+        const forget = await Posts.forget(id, root.user);
+        pubsub.publish('memory', { forget });
+      }
     }
   },
   Subscription: {
+    moments: {
+      subscribe: withFilter(() => pubsub.asyncIterator('memory'), ({ messenger: { payload } }, variables) => payload.channel === variables.channel)
+    },
+    channel: {
+      subscribe: withFilter(() => pubsub.asyncIterator('broadcast'), (payload, variables, ctx) => payload.to === ctx.user.id)
+    }
   },
   Author: {
     id(root) {
@@ -632,7 +435,8 @@ const resolvers = {
     }
   },
   Channel: {},
-  Moment: {}
+  Moment: {},
+  Post: {}
 };
 var schema = makeExecutableSchema({
   typeDefs,
@@ -650,7 +454,7 @@ var graphql$1 = function ({
   host = 'localhost:3000',
   port = 3000,
   path = '/graphql',
-  subscriptionPath = path
+  subscriptionPath
 }) {
   const schema$$1 = schema;
   const getRootValue = async ctx => Object.assign({
@@ -662,16 +466,6 @@ var graphql$1 = function ({
       schema: schema$$1,
       rootValue: await getRootValue(ctx),
       context: ctx,
-      formatError: error => {
-        return console.log('graphql format error: ', error), error;
-      },
-      formatResponse: response => {
-        console.log('graphql response', response);
-        const { session } = ctx;
-        const { login, signup, resetAccount, logout } = response.data;
-        const sessionResponse = login || signup || resetAccount;
-        return sessionResponse ? session.token = sessionResponse.id : logout && (session.token = null), response;
-      },
       debug
     })),
     graphiql: debug && graphiqlKoa({
@@ -725,10 +519,6 @@ var app = function ({
   });
   return router.use(async (ctx, next) => {
     console.log('path: ', ctx.path, ' status: ', ctx.status), await next();
-  }).get('/ping', async ctx => {
-    ctx.body = 'pong';
-  }).get('/favicon.ico', async ctx => {
-    ctx.res.statusCode = 204;
   }).get(/^\/content\/(.*)\.(.*)/, async ctx => {
     const fileId = ctx.params[0];
     const ext = ctx.params[1];
@@ -743,18 +533,19 @@ var app = function ({
   }).get('/*', async (ctx, next) => {
     if (!/text\/html/.test(ctx.headers.accept)) return next();
     const networkInterface = await ctx.localInterface(ctx);
-    const { css, scripts, manifest } = ctx.assets;
+    const { css, scripts, manifest, meta } = ctx.assets;
     return await ctx.render(ctx, {
       css,
       scripts,
       manifest,
+      meta,
       networkInterface
     }), next();
   }), middleware && middleware.forEach(ware => app.use(ware)), app.use(koaHelmet()).use(async (ctx, next) => {
     try {
       await next();
     } catch (e) {
-      ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
+      console.log(error), ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
     }
   }).use(async (ctx, next) => {
     const start = microseconds.now();
@@ -783,22 +574,24 @@ var app = function ({
 };
 
 var index = async function ({
+  host,
   port,
   db: db$$1,
+  render,
   assets,
   webpack,
-  debug
+  debug = !1
 }) {
   const routes = [];
   const middleware = [];
   const context = {};
-  debug ? (webpack && (context.webpack = webpack, middleware.push(webpack.middleware)), context.db = db$$1) : context.db = await db({ debug }), context.render = require('./render'), context.helpers = helpers, context.assets = assets;
+  debug ? (webpack && (context.webpack = webpack, middleware.push(webpack.middleware)), context.db = db$$1) : context.db = await db({ debug }), context.helpers = helpers, context.render = render, context.assets = assets;
   const {
     graphql: graphql$$1,
     graphiql,
     localInterface,
     createSubscriptionServer
-  } = graphql$1({ debug });
+  } = graphql$1({ host, port, debug });
   graphql$$1 && (routes.push({
     path: '/graphql',
     verbs: ['get', 'post'],

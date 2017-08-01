@@ -74,13 +74,7 @@ function configureStore(
   if ( reducers === void 0 ) reducers = {};
   if ( middleware === void 0 ) middleware = [];
   let composer;
-  {
-    composer = typeof window === 'object' &&
-    // eslint-disable-next-line no-underscore-dangle
-    window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ?
-      // eslint-disable-next-line no-underscore-dangle
-      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__({}) : redux.compose;
-  }
+  { composer = redux.compose; }
   const initialState = state || undefined;
   const rootReducer = redux.combineReducers(Object.assign({}, reducers, rootReducers));
   const enhancements = composer(redux.applyMiddleware.apply(void 0, middleware));
@@ -171,8 +165,7 @@ var Application$1 = (function (superclass) {
       React.createElement( reactRouterDom.Switch, null,
         React.createElement( reactRouterDom.Route, {
           exact: true, path: "/", render: function () { return (React.createElement( 'section', { className: "home" },
-            React.createElement( 'img', { width: "50%", src: "/images/pewpew.svg", alt: "Pew Pew" })
-                                                    ,
+            React.createElement( 'img', { width: "50%", src: "/images/pewpew.svg", alt: "Pew Pew" }),
             React.createElement( 'form', {
               id: "channel", onSubmit: function (event) {
                 event.preventDefault();
@@ -180,7 +173,7 @@ var Application$1 = (function (superclass) {
               } },
               React.createElement( 'label', { htmlFor: "remote" }, "/"),
               React.createElement( 'input', {
-                id: "remote", type: "text", value: channel.url, onChange: function (ref) {
+                id: "remote", type: "text", value: channel.url, placeholder: "Tune in to...", onChange: function (ref) {
                   var value = ref.target.value;
                   return channel.change(value.toLowerCase());
             } }),
@@ -194,7 +187,7 @@ var Application$1 = (function (superclass) {
     } })
       ),
       React.createElement( 'footer', null,
-        React.createElement( 'h6', null, React.createElement( 'a', { href: "https://github.com/Francois-Esquire/pewpew" }, "Source Code") )
+        React.createElement( 'h6', null, React.createElement( 'a', { href: "https://github.com/Francois-Esquire/pewpew" }, "github") )
       ),
       React.createElement( ReactModal, {
         contentLabel: modal.label, role: modal.role, isOpen: modal.isOpen, onAfterOpen: modal.onOpen, onRequestClose: modal.close, closeTimeoutMS: modal.delay, shouldCloseOnOverlayClick: true, className: modal.className, portalClassName: modal.portalClassName, overlayClassName: modal.overlayClassName, bodyOpenClassName: modal.bodyOpenClassName, appElement: appElement, ariaHideApp: true },
@@ -227,10 +220,11 @@ Application$1.propTypes = {
 Application$1.defaultProps = {
   appElement: undefined,
   isServer: false,
-  modal: {},
   match: {},
   location: {},
   history: {},
+  modal: {},
+  channel: {},
 };
 
 const Root = reactApollo.compose(

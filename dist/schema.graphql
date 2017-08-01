@@ -8,7 +8,7 @@ interface User {
   handle: String!
   avatar: URL
   channels: [Channel]
-  moments: [Moment]
+  moments(channel: ID): [Post]
 }
 
 type Author implements Node, User {
@@ -16,7 +16,7 @@ type Author implements Node, User {
   handle: String!
   avatar: URL
   channels: [Channel]
-  moments: [Moment]
+  moments(channel: ID): [Post]
   email: String
 }
 
@@ -25,7 +25,7 @@ type Contributor implements Node, User {
   handle: String!
   avatar: URL
   channels: [Channel]
-  moments: [Moment]
+  moments(channel: ID): [Post]
 }
 
 type Channel implements Node {
@@ -39,21 +39,15 @@ type Channel implements Node {
   present: Int
   moments(
     limit: Int = 64,
-    types: [Types]
-    ): [Moment]
+    kinds: [Types]
+    ): [Post]
 }
 
 interface Moment {
   id: ID!
   by: ID!
-  type: Types!
-  content: Content!
-}
-
-type Content {
-  media: ID
-  text: String
-  url: URL
+  kind: Types!
+  content: String!
 }
 
 enum Types {
@@ -67,9 +61,10 @@ enum Types {
 type Post implements Moment {
   id: ID!
   by: ID!
-  type: Types!
-  content: Content!
+  kind: Types!
+  content: String!
   reactions: [Post]
+  channel: ID!
 }
 
 type Query {
@@ -78,16 +73,17 @@ type Query {
   author(
     id: ID
     ): Contributor
+  channel(
+    id: ID
+    ): Channel
   channels(
-    limit: Int
+    limit: Int = 16
     ): [Channel]
-  # moments(): [Moment]
 }
 
 type Mutation {
   join(
     handle: String!
-    channel: ID
     ): Contributor
   signup(
     email: String!
@@ -100,17 +96,18 @@ type Mutation {
     ): Author
   logout(
     session: String
-    ): Author
+    ): Boolean
   changePassword(
-    password: String!
-    ): Author
+    pass: String!
+    word: String!
+    ): Boolean
   changeHandle(
     handle: String!
-    ): Author
+    ): Boolean
   changeEmail(
     email: String!
-    ): Author
-  deleteAccount(): Author
+    ): Boolean
+  deleteAccount: Boolean
 
   publishChannel(
     url: String!
@@ -119,21 +116,23 @@ type Mutation {
   updateChannel(
     id: ID!
     ): Channel
-  releaseChannel(
+  deleteChannel(
     id: ID!
-    ): Channel
+    ): Boolean
 
   remember(
-    
+    channel: String!
+    content: String!
+    kind: String!
     ): Moment
   forget(
-    
+    id: String!
     ): Moment
 }
 
 type Subscription {
   moments(
-    channels: [ID]
+    channel: ID!
     ): Moment
   channel(
     id: ID!

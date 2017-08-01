@@ -8,7 +8,7 @@ module.exports = function graphqlConfig({
   host = 'localhost:3000',
   port = 3000,
   path = '/graphql',
-  subscriptionPath = path,
+  subscriptionPath,
 }) {
   const schema = require('./schema.js');
 

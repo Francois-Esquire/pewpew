@@ -10,6 +10,7 @@ main#view {
     flex-flow: row nowrap;
     justify-content: center;
     text-align: center;
+    color: #7659d0;
   }
 }
 
@@ -47,6 +48,28 @@ main#view > section {
         border: none;
         background: none;
         color: #fff;
+        transition: 120ms cubic-bezier(0.1, 0.6, 0.5, 1) all;
+      }
+      & button {
+        padding: 0.5em;
+        /*font-size: 1.5em;*/
+        border-radius: 0.25em;
+        border: 0px solid transparent;
+        &:hover {
+          background-color: #fff;
+          color: #2bc0da;
+        }
+      }
+      & input {
+        border-bottom: 2px solid transparent;
+        &:focus {
+          border-color: #fff;
+        }
+        &::placeholder {
+          color: #fff;
+          opacity: 0.5;
+          text-align: center;
+        }
       }
     }
   }
