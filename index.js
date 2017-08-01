@@ -93,6 +93,7 @@ try {
       const sentry = chokidar.watch(['./dist/*.js', './server/models/*.js']);
       sentry.on('ready', () => {
         const mongoose = require('mongoose');
+
         sentry.on('all', (event, src) => {
           switch (event) {
             default: break;
@@ -117,7 +118,7 @@ try {
           }
         });
 
-        return process.nextTick(runServer);
+        return runServer();
       });
     });
   } else {

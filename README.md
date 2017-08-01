@@ -10,21 +10,20 @@ Inspired by a talk I gave on GraphQL at [ReactNYC meetup \#7](https://www.meetup
 currently a work in progress.
 
 ## Quick start
-
+this project requires node.js (v7.6 and up) and access to mongodb.
 ```bash
-# this project requires mongodb and node.js.
-# make sure you have mongo running on your local machine,
-# or set the MONGODB_URI environment variable to where your mongodb lives.
+### make sure you have mongo running on your local machine,
+### or set the MONGODB_URI environment variable to where your mongodb lives.
 
 # mongod
 
 nmp install
 
-# for development, run
+### for development:
 
 npm run dev
 
-# to build your project:
+### to build your project:
 
 npm run build
 ```
