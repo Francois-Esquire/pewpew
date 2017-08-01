@@ -7,10 +7,9 @@ Inspired by a talk I gave on GraphQL at [ReactNYC meetup \#7](https://www.meetup
 
 ![welcome home][landing]
 
-currently a work in progress.
+Currently a work in progress - requires node.js (v7.6 and up) and access to mongodb.
 
 ## Quick start
-this project requires node.js (v7.6 and up) and access to mongodb.
 ```bash
 ### make sure you have mongo running on your local machine,
 ### or set the MONGODB_URI environment variable to where your mongodb lives.
