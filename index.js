@@ -124,18 +124,15 @@ try {
   } else {
     const render = require('./dist/render');
     const server = require('./dist/server');
-    const stats = require('./dist/stats/bundle.json');
+    const assets = require('./dist/stats/bundle.json').assetsByChunkName;
 
-    Object.keys(stats.assetsByChunkName)
-      .forEach(chunk => stats.assetsByChunkName[chunk].forEach((asset) => {
-        if (/js\//.test(asset)) {
-          asset.startsWith('js/manifest') ? scripts.unshift(asset) : scripts.push(asset);
-        }
-        else if (/css\//.test(asset)) css.push(asset);
+    Object.keys(assets)
+      .forEach(chunk => assets[chunk].forEach((src) => {
+        if (/js\//.test(src)) {
+          if (src.startsWith('js/manifest')) scripts.unshift(src);
+          else scripts.push(src);
+        } else if (/css\//.test(src)) css.push(src);
       }));
-
-    // eslint-disable-next-line no-confusing-arrow
-    // scripts.sort(a => a.startsWith('manifest') ? -1 : a.startsWith('client') ? 1 : -1);
 
     server({
       port,

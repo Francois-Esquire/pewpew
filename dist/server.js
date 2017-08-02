@@ -517,9 +517,7 @@ var app = function ({
     },
     preservePath: !0
   });
-  return router.use(async (ctx, next) => {
-    console.log('path: ', ctx.path, ' status: ', ctx.status), await next();
-  }).get(/^\/content\/(.*)\.(.*)/, async ctx => {
+  return router.get(/^\/content\/(.*)\.(.*)/, async ctx => {
     const fileId = ctx.params[0];
     const ext = ctx.params[1];
     const file = await ctx.db.gfs.findOne({ _id: fileId, filename: `${fileId}.${ext}` });
