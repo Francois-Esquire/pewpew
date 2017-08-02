@@ -34,14 +34,6 @@ export default function render(ctx, {
     </ApolloProvider>
   </StaticRouter>);
 
-  // if (ctx.state.webpackStats) {
-  //   Object.keys(ctx.state.webpackStats.compilation.assets)
-  //     .filter(src => /^()/.test(src))
-  //     .forEach(src => scripts.push(src));
-  // }
-  // eslint-disable-next-line no-confusing-arrow
-  scripts.sort(a => a.startsWith('manifest') ? -1 : a.startsWith('client') ? 1 : -1);
-
   return new Promise((resolve, reject) => {
     getDataFromTree(app).then(() => {
       const html = ReactDOMServer.renderToString(app);

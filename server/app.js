@@ -44,12 +44,6 @@ module.exports = function App({
   });
 
   router
-    .use(async (ctx, next) => {
-      // if (/\.(json|css|gz|map)$/.test(ctx.path)) next();
-      // console.log(Object.keys(ctx.state.webpackStats.toJson()));
-      console.log('path: ', ctx.path, ' status: ', ctx.status);
-      await next();
-    })
     .get(/^\/content\/(.*)\.(.*)/, async (ctx) => {
       const fileId = ctx.params[0];
       const ext = ctx.params[1];

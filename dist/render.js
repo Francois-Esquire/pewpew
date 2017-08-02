@@ -329,8 +329,6 @@ function render(ctx, ref) {
       React.createElement( Root, { isServer: true })
     )
   ));
-  // eslint-disable-next-line no-confusing-arrow
-  scripts.sort(function (a) { return a.startsWith('manifest') ? -1 : a.startsWith('client') ? 1 : -1; });
   return new Promise(function (resolve, reject) {
     reactApollo.getDataFromTree(app).then(function () {
       const html = ReactDOMServer.renderToString(app);

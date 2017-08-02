@@ -128,9 +128,14 @@ try {
 
     Object.keys(stats.assetsByChunkName)
       .forEach(chunk => stats.assetsByChunkName[chunk].forEach((asset) => {
-        if (/js\//.test(asset)) scripts.push(asset);
+        if (/js\//.test(asset)) {
+          asset.startsWith('js/manifest') ? scripts.unshift(asset) : scripts.push(asset);
+        }
         else if (/css\//.test(asset)) css.push(asset);
       }));
+
+    // eslint-disable-next-line no-confusing-arrow
+    // scripts.sort(a => a.startsWith('manifest') ? -1 : a.startsWith('client') ? 1 : -1);
 
     server({
       port,
