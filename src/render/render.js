@@ -6,7 +6,6 @@ import Helmet from 'react-helmet';
 
 import configStore from '../store';
 import Application from '../components/Root';
-// import Application from '../appl.es';
 import Html from './Html';
 
 export default function render(ctx, {

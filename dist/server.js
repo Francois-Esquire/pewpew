@@ -22,6 +22,7 @@ var koaMulter = require('koa-multer');
 var koaFavicon = require('koa-favicon');
 var multerGridfsStorage = require('multer-gridfs-storage');
 var microseconds = require('microseconds');
+var fs = require('fs');
 
 const ID = mongoose.Schema.Types.ObjectId;
 const PostSchema = new mongoose.Schema({
@@ -571,6 +572,7 @@ var app = function ({
 };
 
 var index = async function ({
+  unix_socket,
   host,
   port,
   paths,
@@ -607,8 +609,9 @@ var index = async function ({
     debug
   });
   const server = http.createServer(app$$1.callback());
-  return server.listen(port, () => {
-    console.log(`listening on port: ${port}`), createSubscriptionServer({ server });
+  // eslint-disable-next-line camelcase
+  return server.listen(unix_socket || port, () => {
+    unix_socket ? (console.log(`app is listening on unix socket: ${unix_socket}`), fs.openSync('/tmp/app-initialized', 'w')) : console.log(`listening on port: ${port}`), createSubscriptionServer({ server });
   }), { server, app: app$$1 };
 };
 

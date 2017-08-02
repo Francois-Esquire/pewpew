@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const { protocol, host, port, paths, debug } = require('./config');
+const { unix_socket, protocol, host, port, paths, debug } = require('./config');
 
 try {
   const css = [];
@@ -137,6 +137,7 @@ try {
       }));
 
     server({
+      unix_socket,
       protocol,
       host,
       port,

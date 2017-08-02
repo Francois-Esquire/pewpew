@@ -1,6 +1,7 @@
 const http = require('http');
 
 module.exports = async function Server({
+  unix_socket,
   host,
   port,
   paths,
@@ -66,8 +67,14 @@ module.exports = async function Server({
 
   const server = http.createServer(app.callback());
 
-  server.listen(port, () => {
-    console.log(`listening on port: ${port}`);
+  // eslint-disable-next-line camelcase
+  server.listen(unix_socket || port, () => {
+    // eslint-disable-next-line camelcase
+    if (unix_socket) {
+      // eslint-disable-next-line camelcase
+      console.log(`app is listening on unix socket: ${unix_socket}`);
+      require('fs').openSync('/tmp/app-initialized', 'w');
+    } else console.log(`listening on port: ${port}`);
     createSubscriptionServer({ server });
   });
 
