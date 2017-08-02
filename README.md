@@ -1,9 +1,7 @@
 # Pew Pew
-Inspired by a talk I gave on GraphQL at [ReactNYC meetup \#7](https://www.meetup.com/ReactNYC/events/240619695/).
+Inspired by a talk I gave on GraphQL at [ReactNYC meetup \#7][meetup].
 
-[Check out the presentation slides.](http://slides.com/michaeltobia/graphql/)
-
-[Live demo on Heroku.](https://pew-pew-pew.herokuapp.com/)
+[Check out the presentation slides.][slides]
 
 ![welcome home][landing]
 
@@ -32,5 +30,9 @@ npm run build
 
 ### TODO
 - [ ] Testing
+
+[meetup]: https://www.meetup.com/ReactNYC/events/240619695/
+[slides]: http://slides.com/michaeltobia/graphql/
+[heroku]: https://pew-pew-pew.herokuapp.com/
 
 [landing]: https://github.com/Francois-Esquire/pewpew/raw/master/assets/screenshots/home.png "landing page"

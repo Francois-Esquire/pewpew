@@ -1,9 +1,9 @@
-internal
-spec
+internal/
+spec/
 .babelrc
 .eslintignore
 .eslintrc.js
-.gitignore
-README.md
 webpack.config.js
 postcss.config.js
+package-lock.json
+readme.md
