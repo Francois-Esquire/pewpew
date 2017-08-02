@@ -3,6 +3,8 @@ Inspired by a talk I gave on GraphQL at [ReactNYC meetup \#7][meetup].
 
 [Check out the presentation slides.][slides]
 
+[Live demo on Heroku][heroku]
+
 ![welcome home][landing]
 
 Currently a work in progress - requires node.js (v7.6 and up) and access to mongodb.
