@@ -8,6 +8,7 @@ const GzipCompressionPlugin = require('compression-webpack-plugin');
 const BrotliCompressionPlugin = require('brotli-webpack-plugin');
 
 const pkg = require('./package.json');
+const config = require('./config');
 
 const dllPath = join(__dirname, 'dist/dll');
 const srcPath = join(__dirname, 'src');
@@ -211,7 +212,7 @@ module.exports = {
     hotUpdateChunkFilename: 'hot.[hash].js',
     hotUpdateMainFilename: 'hot-update.[hash].json',
     path: join(distPath, 'public'),
-    publicPath: '/',
+    publicPath: `${config.protocol}${config.host}`,
   },
   module: {
     rules: [rules.json, rules.url, rules.css, rules.gql, {

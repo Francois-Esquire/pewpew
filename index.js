@@ -1,7 +1,6 @@
 const fs = require('fs');
 
-const port = process.env.PORT || 3000;
-const debug = process.env.NODE_ENV !== 'production';
+const { protocol, host, port, paths, debug } = require('./config');
 
 try {
   const css = [];
@@ -70,12 +69,15 @@ try {
         }
 
         process.nextTick(() => require('./dist/server-dev')({
+          protocol,
+          host,
           port,
-          db,
+          paths,
           render: require('./dist/render.js'),
           assets: { css, scripts, manifest, meta },
-          webpack,
           debug,
+          webpack,
+          db,
         }).then((p) => {
           // eslint-disable-next-line no-console
           console.log('server restarted!');
@@ -135,7 +137,10 @@ try {
       }));
 
     server({
+      protocol,
+      host,
       port,
+      paths,
       render,
       assets: { css, scripts, manifest, meta },
     });

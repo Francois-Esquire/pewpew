@@ -5,10 +5,9 @@ const { createLocalInterface } = require('apollo-local-query');
 
 module.exports = function graphqlConfig({
   debug,
-  host = 'localhost:3000',
-  port = 3000,
-  path = '/graphql',
-  subscriptionPath,
+  host,
+  port,
+  path,
 }) {
   const schema = require('./schema.js');
 
@@ -25,9 +24,9 @@ module.exports = function graphqlConfig({
       context: ctx,
       debug,
     })),
-    graphiql: debug && graphiqlKoa({
+    graphiql: graphiqlKoa({
       endpointURL: path,
-      subscriptionsEndpoint: subscriptionPath || `ws://${host}${path}`,
+      subscriptionsEndpoint: `ws://${host}${path}`,
     }),
     createSubscriptionServer(options = {}) {
       const { server, keepAlive = 1000 } = options;
@@ -36,17 +35,6 @@ module.exports = function graphqlConfig({
         schema,
         execute,
         subscribe,
-        // onOperation: (message, params, socket) => {
-        //   console.log('onOperation - params: ',params);
-        //   return params;
-        // },
-        // onOperationComplete: (socket) => console.log('subscription operation complete'),
-        // onConnect: (connectionParams, webSocket) => {
-        //   console.log('subscription socket: onConnect', connectionParams);
-        // },
-        // onDisconnect: (webSocket) => {
-        //   console.log('subscription socket: onDisconnect');
-        // },
         keepAlive,
       }, (server ? {
           server,

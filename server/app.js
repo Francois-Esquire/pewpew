@@ -92,7 +92,6 @@ module.exports = function App({
       try {
         await next();
       } catch (e) {
-        console.log(error);
         ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
       }
     })

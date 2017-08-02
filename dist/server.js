@@ -451,10 +451,9 @@ const { SubscriptionServer } = subscriptionsTransportWs;
 const { createLocalInterface } = apolloLocalQuery;
 var graphql$1 = function ({
   debug,
-  host = 'localhost:3000',
-  port = 3000,
-  path = '/graphql',
-  subscriptionPath
+  host,
+  port,
+  path
 }) {
   const schema$$1 = schema;
   const getRootValue = async ctx => Object.assign({
@@ -468,9 +467,9 @@ var graphql$1 = function ({
       context: ctx,
       debug
     })),
-    graphiql: debug && graphiqlKoa({
+    graphiql: graphiqlKoa({
       endpointURL: path,
-      subscriptionsEndpoint: subscriptionPath || `ws://${host}${path}`
+      subscriptionsEndpoint: `ws://${host}${path}`
     }),
     createSubscriptionServer(options = {}) {
       const { server, keepAlive = 1000 } = options;
@@ -543,7 +542,7 @@ var app = function ({
     try {
       await next();
     } catch (e) {
-      console.log(error), ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
+      ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
     }
   }).use(async (ctx, next) => {
     const start = microseconds.now();
@@ -574,11 +573,12 @@ var app = function ({
 var index = async function ({
   host,
   port,
-  db: db$$1,
+  paths,
   render,
   assets,
+  debug = !1,
   webpack,
-  debug = !1
+  db: db$$1
 }) {
   const routes = [];
   const middleware = [];
@@ -589,7 +589,7 @@ var index = async function ({
     graphiql,
     localInterface,
     createSubscriptionServer
-  } = graphql$1({ host, port, debug });
+  } = graphql$1({ debug, host, port, path: paths.graphql });
   graphql$$1 && (routes.push({
     path: '/graphql',
     verbs: ['get', 'post'],

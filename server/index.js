@@ -3,11 +3,12 @@ const http = require('http');
 module.exports = async function Server({
   host,
   port,
-  db,
+  paths,
   render,
   assets,
-  webpack,
   debug = false,
+  webpack,
+  db,
 }) {
   const keys = ['ssssseeeecret', 'ssshhhhhhhhh'];
 
@@ -35,7 +36,7 @@ module.exports = async function Server({
     graphiql,
     localInterface,
     createSubscriptionServer,
-  } = require('./graphql')({ host, port, debug });
+  } = require('./graphql')({ debug, host, port, path: paths.graphql });
 
   if (graphql) {
     routes.push({
