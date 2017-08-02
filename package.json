@@ -21,7 +21,7 @@
   "main": "index.js",
   "engines": {
     "node": "^8.2.1",
-    "npm": "^5.3.0"
+    "npm": "5.2.0"
   },
   "scripts": {
     "build": "NODE_ENV=production run-s clean build:render build:server webpack",
@@ -45,7 +45,7 @@
     "apollo-client": "^1.8.1",
     "apollo-local-query": "^0.3.0",
     "babel-polyfill": "^6.23.0",
-    "bcrypt-nodejs": "0.0.3",
+    "bcrypt-nodejs": "^0.0.3",
     "graphql": "^0.10.5",
     "graphql-server-koa": "^0.8.5",
     "graphql-subscriptions": "^0.4.4",
