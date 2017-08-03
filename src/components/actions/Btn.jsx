@@ -1,7 +1,7 @@
 import React from 'react';
 import { graphql } from 'react-apollo';
 
-import mutation from '../mutations/logout.gql';
+import mutation from '../../../schema/mutations/logout.gql';
 
 const ActionButton = ({ children, action }) =>
   (<button

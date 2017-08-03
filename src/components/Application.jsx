@@ -8,6 +8,12 @@ import Header from './Header';
 import Nexus from './Nexus';
 
 class Application extends React.PureComponent {
+  getChildContext() {
+    const { modal } = this.props;
+    return {
+      modal,
+    };
+  }
   componentWillReceiveProps(Props) {
     const {
       modal,
@@ -28,7 +34,7 @@ class Application extends React.PureComponent {
       (<modal.view modal={modal} match={match} location={location} history={history} />) : null;
 
     return (<main id="view">
-      <Header />
+      <Header openMenu={this.openMenu} />
       <Switch>
         <Route
           exact
@@ -108,6 +114,10 @@ Application.defaultProps = {
   history: {},
   modal: {},
   channel: {},
+};
+
+Application.childContextTypes = {
+  modal: PropTypes.object,
 };
 
 export default Application;
