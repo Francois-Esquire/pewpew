@@ -83,24 +83,6 @@ function configureStore(
   const initialState = state || undefined;
   const rootReducer = redux.combineReducers(Object.assign({}, reducers, rootReducers));
   const enhancers = [redux.applyMiddleware.apply(void 0, middleware)];
-  {
-    const enhancements = (
-      typeof window === 'object' &&
-      // eslint-disable-next-line no-underscore-dangle
-      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ?
-      // eslint-disable-next-line no-underscore-dangle
-      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__({}) : redux.compose
-    ).apply(void 0, enhancers);
-    const store = redux.createStore(rootReducer, initialState, enhancements);
-    if (module && module.hot) {
-      module.hot.accept('./reducers', function () {
-        const nextReducers = require('./reducers').default;
-        store.replaceReducer(redux.combineReducers(Object.assign({}, reducers,
-          nextReducers)));
-      });
-    }
-    return store;
-  }
   return redux.createStore(rootReducer, initialState, redux.compose.apply(void 0, enhancers));
 }
 
@@ -417,7 +399,6 @@ function render(ctx, ref) {
   var css = ref.css; if ( css === void 0 ) css = [];
   var scripts = ref.scripts; if ( scripts === void 0 ) scripts = [];
   var networkInterface = ref.networkInterface;
-  if (ctx.state === undefined) { ctx.state = {}; }
   const client = new reactApollo.ApolloClient({
     dataIdFromObject: function (o) { return o.id; },
     networkInterface: networkInterface,

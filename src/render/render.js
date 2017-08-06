@@ -14,8 +14,6 @@ export default function render(ctx, {
   scripts = [],
   networkInterface,
 }) {
-  if (ctx.state === undefined) ctx.state = {};
-
   const client = new ApolloClient({
     dataIdFromObject: o => o.id,
     networkInterface,

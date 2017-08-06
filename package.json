@@ -31,6 +31,7 @@
     "clean": "rimraf dist/public && rimraf dist/stats",
     "dev": "run-p watch start",
     "lint": "eslint . -c .eslintrc.js --ext .js --ext .jsx --ext .gql --ext .graphql",
+    "mock": "NODE_ENV=production node index.js",
     "start": "node index.js",
     "setup": "run-s build:dll build",
     "test": "mocha spec/*.test.js",

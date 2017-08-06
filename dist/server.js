@@ -2,8 +2,8 @@
 
 var http = require('http');
 var mongoose = require('mongoose');
-var gridfsStream = require('gridfs-stream');
 var jsonwebtoken = require('jsonwebtoken');
+var gridfsStream = require('gridfs-stream');
 var validator = require('validator');
 var bcryptNodejs = require('bcrypt-nodejs');
 var graphql = require('graphql');
@@ -24,16 +24,28 @@ var multerGridfsStorage = require('multer-gridfs-storage');
 var microseconds = require('microseconds');
 var fs = require('fs');
 
-const ID = mongoose.Schema.Types.ObjectId;
+var helpers = {
+  async getUser(token, secret) {
+    if (!token || !secret) return { user: null, token: null };
+    try {
+      const decodedToken = jsonwebtoken.verify(token.replace(/^JWT\s{1,}/, ''), secret);
+      const user = await mongoose.model('User').findOne({ _id: decodedToken.sub });
+      return { user, token };
+    } catch (err) {
+      return { user: null, token };
+    }
+  }
+};
+
 const PostSchema = new mongoose.Schema({
   by: {
-    type: ID,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: !0
   },
   channel: {
-    type: ID,
-    ref: 'Thread',
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Channel',
     required: !0
   },
   content: {
@@ -42,7 +54,14 @@ const PostSchema = new mongoose.Schema({
     minlength: 1,
     trim: !0
   },
-  kind: String
+  kind: {
+    type: String,
+    required: !0,
+    enum: {
+      message: '`{VALUE}` is not a valid `{PATH}`.',
+      values: ['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'LINK']
+    }
+  }
 }, {
   toObject: {
     getters: !1,
@@ -74,22 +93,64 @@ PostSchema.virtual('createdAt').get(function () {
 };
 const Post = mongoose.model('Post', PostSchema);
 
-const AuthorSchema = new mongoose.Schema({
-  handle: String,
-  avatar: String
-}, { _id: !1 });
 const ChannelSchema = new mongoose.Schema({
-  by: String,
+  by: mongoose.Schema.Types.ObjectId,
   url: String,
   title: String,
   description: String,
-  members: [AuthorSchema]
+  tags: [String],
+  members: [mongoose.Schema.Types.ObjectId],
+  maintainers: [mongoose.Schema.Types.ObjectId],
+  private: {
+    type: Boolean,
+    default: !1
+  }
 });
-ChannelSchema.statics = {
-  search() {},
-  publish() {},
-  update() {},
-  delete() {}
+ChannelSchema.pre('save', function (next) {
+  const channel = this;
+  return channel.isNew && (!channel.members && (channel.members = []), !channel.maintainers && (channel.maintainers = []), channel.maintainers.push(channel.by)), next();
+}), ChannelSchema.statics = {
+  search(count, tags = []) {
+    return this.limit(count).find({
+      $and: [{ private: !1 }, { $in: { tags } }]
+    });
+  },
+  async publish({ url, title, description, tags }, user) {
+    const Channel = this;
+    const channel = await new Channel({
+      by: user.id,
+      url,
+      title,
+      description,
+      tags
+    }).save();
+    return channel;
+  },
+  async update(id, user) {
+    const channel = await this.findOne(id);
+    if (channel) {
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (maintainer >= 0) return await channel.save(), !0;
+    }
+    return !1;
+  },
+  async join(id, user) {
+    const channel = await this.findOne(id);
+    if (channel && !channel.private) {
+      const member = channel.members.indexOf(user.id);
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (member < 0 || maintainer < 0) return channel.members.push(user.id), await channel.save(), !0;
+    }
+    return !1;
+  },
+  async abandon(id, user) {
+    const channel = await this.findOne(id);
+    if (channel) {
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (maintainer >= 0) return channel.members.length ? (channel.maintainers.splice(maintainer, 1), await channel.save()) : await channel.remove(), !0;
+    }
+    return !1;
+  }
 }, ChannelSchema.methods = {};
 const Channel = mongoose.model('Channel', ChannelSchema);
 
@@ -182,19 +243,6 @@ var db = async ({ debug, uri, options }) => {
   };
 };
 
-var helpers = {
-  async getUser(token, secret) {
-    if (!token || !secret) return { user: null, token: null };
-    try {
-      const decodedToken = jsonwebtoken.verify(token.replace(/^JWT\s{1,}/, ''), secret);
-      const user = await mongoose.model('User').findOne({ _id: decodedToken.sub });
-      return { user, token };
-    } catch (err) {
-      return { user: null, token };
-    }
-  }
-};
-
 const schema$2 = `scalar URL
 
 interface Node {
@@ -234,6 +282,7 @@ type Channel implements Node {
   tags: [String]
   members: [Contributor]
   present: Int
+  private: Boolean
   moments(
     limit: Int = 64,
     kinds: [Types]
@@ -309,11 +358,16 @@ type Mutation {
   publishChannel(
     url: String!
     title: String
+    description: String
+    tags: [String]
     ): Channel
   updateChannel(
     id: ID!
-    ): Channel
-  deleteChannel(
+    ): Boolean
+  joinChannel(
+    id: ID!
+    ): Boolean
+  abandonChannel(
     id: ID!
     ): Boolean
 
@@ -397,9 +451,10 @@ const resolvers = {
     changeHandle: (root, { handle }) => root.user && root.user.changeHandle(handle),
     changeEmail: (root, { email }) => root.user && root.user.changeEmail(email),
     deleteAccount: root => root.user && root.user.deleteAccount(),
-    publishChannel: (root, { url, title }) => root.user && Channels.publish(url, title, root.user),
+    publishChannel: (root, { url, title, description, tags }) => root.user && Channels.publish({ url, title, description, tags }, root.user),
     updateChannel: (root, { id }) => root.user && Channels.update(id, root.user),
-    deleteChannel: (root, { id }) => root.user && Channels.delete(id, root.user),
+    joinChannel: (root, { id }) => root.user && Channels.join(id, root.user),
+    abandonChannel: (root, { id }) => root.user && Channels.abandon(id, root.user),
     async remember(root, { channel, content, kind }) {
       if (root.user) {
         const memory = await Posts.create(root.user.id, channel, content, kind);
@@ -551,7 +606,8 @@ var app = function ({
     const end = microseconds.parse(microseconds.since(start));
     const total = end.microseconds + end.milliseconds * 1e3 + end.seconds * 1e6;
     ctx.set('Response-Time', `${total / 1e3}ms`);
-  }).use(koaFavicon(`${process.cwd()}/dist/public/icons/favicon.ico`)).use(koaSession({
+  }
+  ).use(koaFavicon(`${process.cwd()}/dist/public/icons/favicon.ico`)).use(koaSession({
     key: 'persona',
     maxAge: 86400000,
     overwrite: !0,
@@ -563,6 +619,7 @@ var app = function ({
   }).use(async (ctx, next) => {
     try {
       if (ctx.path !== '/') {
+        /\.(svg|css|js)$/.test(ctx.path) && ctx.set({ Etag: ctx.assets.hash });
         const root = `${process.cwd()}${/^\/(images)\//.test(ctx.path) ? '/assets' : '/dist/public'}`;
         await koaSend(ctx, ctx.path, { root, immutable: !debug });
       }
@@ -575,7 +632,7 @@ var index = async function ({
   unix_socket,
   host,
   port,
-  paths,
+  endpoints,
   render,
   assets,
   debug = !1,
@@ -584,20 +641,25 @@ var index = async function ({
 }) {
   const routes = [];
   const middleware = [];
-  const context = {};
-  debug ? (webpack && (context.webpack = webpack, middleware.push(webpack.middleware)), context.db = db$$1) : context.db = await db({ debug }), context.helpers = helpers, context.render = render, context.assets = assets;
+  const context = {
+    helpers: helpers,
+    render,
+    assets,
+    endpoints
+  };
+  debug ? (webpack && (context.webpack = webpack, middleware.push(webpack.middleware), context.assets.hash = webpack.hash), context.db = db$$1) : context.db = await db({ debug });
   const {
     graphql: graphql$$1,
     graphiql,
     localInterface,
     createSubscriptionServer
-  } = graphql$1({ debug, host, port, path: paths.graphql });
+  } = graphql$1({ debug, host, port, path: `/${endpoints.graphql}` });
   graphql$$1 && (routes.push({
-    path: '/graphql',
+    path: `/${endpoints.graphql}`,
     verbs: ['get', 'post'],
     use: graphql$$1
   }), localInterface && (context.localInterface = localInterface), graphiql && routes.push({
-    path: '/graphiql',
+    path: `/${endpoints.graphiql}`,
     verbs: ['get'],
     use: graphiql
   }));

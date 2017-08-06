@@ -17,12 +17,12 @@ module.exports = async function Server({
 
   const middleware = [];
 
-  const context = {};
-
-  context.helpers = require('./helpers');
-  context.render = render;
-  context.assets = assets;
-  context.endpoints = endpoints;
+  const context = {
+    helpers: require('./helpers'),
+    render,
+    assets,
+    endpoints,
+  };
 
   if (debug) {
     if (webpack) {
