@@ -27,7 +27,7 @@ module.exports = {
   port,
   hrefs: {
     graphql: `${protocol}${domains.graphql}.${host}`,
-    graphiql: `${protocol}${domains.graphiql}.${host}`,
+    graphiql: `${protocol}${domains.graphql}.${host}/${domains.graphiql}`,
     graphqlSub: `${ws}${domains.graphql}.${host}`,
     content: `${protocol}${domains.content}.${host}`,
     upload: `${protocol}${domains.upload}.${host}`,

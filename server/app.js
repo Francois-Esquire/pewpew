@@ -23,7 +23,7 @@ module.exports = function App({
   const router = new KoaRouter();
 
   app.keys = keys;
-  app.subdomainOffset = 1;
+  app.subdomainOffset = debug ? 1 : 2;
 
   Object.assign(app.context, context);
 
