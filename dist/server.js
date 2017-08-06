@@ -556,7 +556,7 @@ var app = function ({
 }) {
   const app = new koa();
   const router = new koaRouter();
-  app.keys = keys, app.subdomainOffset = 1, Object.assign(app.context, context);
+  app.keys = keys, app.subdomainOffset = debug ? 1 : 2, Object.assign(app.context, context);
   const api = new koaSubdomain().use(domains.graphql, new koaRouter().get(`/${domains.graphiql}`, graphiql).post('*', graphql$$1).routes());
   const content = new koaSubdomain().use(domains.content, new koaRouter().get(/^(.*)\.(.*){3,4}$/, async ctx => {
     const id = ctx.params[0];
