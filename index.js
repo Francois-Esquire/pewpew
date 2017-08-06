@@ -195,7 +195,6 @@ const fs = require('fs');
         // console.log(`Master ${process.pid} is running`);
       } else {
         // console.log(`Worker ${process.pid} started`);
-
         server({
           unix_socket,
           protocol,
