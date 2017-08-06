@@ -1,0 +1,3 @@
+subscription Topics($tags: [String]) {
+  topics(tags: $tags)
+}

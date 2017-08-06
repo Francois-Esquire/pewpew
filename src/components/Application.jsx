@@ -35,7 +35,7 @@ class Application extends React.Component {
       (<modal.view modal={modal} match={match} location={location} history={history} />) : null;
 
     return (<main id="view">
-      <Header channel={channel.url} openMenu={this.openMenu} />
+      {/* <Header channel={channel.url} openMenu={this.openMenu} /> */}
       <Switch>
         <Route
           exact

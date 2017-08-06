@@ -731,13 +731,9 @@
               "description": "",
               "args": [],
               "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "ID",
-                  "ofType": null
-                }
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
               },
               "isDeprecated": false,
               "deprecationReason": null
@@ -747,13 +743,9 @@
               "description": "",
               "args": [],
               "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "ENUM",
-                  "name": "Types",
-                  "ofType": null
-                }
+                "kind": "ENUM",
+                "name": "Types",
+                "ofType": null
               },
               "isDeprecated": false,
               "deprecationReason": null
@@ -763,13 +755,9 @@
               "description": "",
               "args": [],
               "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "String",
-                  "ofType": null
-                }
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
               },
               "isDeprecated": false,
               "deprecationReason": null
@@ -844,13 +832,9 @@
               "description": "",
               "args": [],
               "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "ID",
-                  "ofType": null
-                }
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
               },
               "isDeprecated": false,
               "deprecationReason": null
@@ -860,13 +844,9 @@
               "description": "",
               "args": [],
               "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "ENUM",
-                  "name": "Types",
-                  "ofType": null
-                }
+                "kind": "ENUM",
+                "name": "Types",
+                "ofType": null
               },
               "isDeprecated": false,
               "deprecationReason": null
@@ -876,13 +856,9 @@
               "description": "",
               "args": [],
               "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "String",
-                  "ofType": null
-                }
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
               },
               "isDeprecated": false,
               "deprecationReason": null
@@ -1466,6 +1442,33 @@
               "deprecationReason": null
             },
             {
+              "name": "topics",
+              "description": "",
+              "args": [
+                {
+                  "name": "tags",
+                  "description": "",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "String",
+                      "ofType": null
+                    }
+                  },
+                  "defaultValue": null
+                }
+              ],
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
               "name": "moments",
               "description": "",
               "args": [
@@ -1485,8 +1488,8 @@
                 }
               ],
               "type": {
-                "kind": "INTERFACE",
-                "name": "Moment",
+                "kind": "OBJECT",
+                "name": "Post",
                 "ofType": null
               },
               "isDeprecated": false,

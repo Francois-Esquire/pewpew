@@ -1,0 +1,8 @@
+subscription Moments($channel: ID!) {
+  moments(channel: $channel) {
+    id
+    by
+    kind
+    content
+  }
+}

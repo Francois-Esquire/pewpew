@@ -278,9 +278,9 @@ type Channel implements Node {
 
 interface Moment {
   id: ID!
-  by: ID!
-  kind: Types!
-  content: String!
+  by: ID
+  kind: Types
+  content: String
 }
 
 enum Types {
@@ -293,9 +293,9 @@ enum Types {
 
 type Post implements Moment {
   id: ID!
-  by: ID!
-  kind: Types!
-  content: String!
+  by: ID
+  kind: Types
+  content: String
   reactions: [Post]
   channel: ID!
 }
@@ -370,9 +370,12 @@ type Mutation {
 
 type Subscription {
   uptime: Int
+  topics(
+    tags: [String]
+    ): String
   moments(
     channel: ID!
-    ): Moment
+    ): Post
   channel(
     id: ID!
     ): Channel
@@ -400,7 +403,7 @@ const Posts = mongoose.model('Post');
 const pubsub = new PubSub();
 ['publish', 'subscribe', 'unsubscribe', 'asyncIterator'].forEach(key => {
   pubsub[key] = pubsub[key].bind(pubsub);
-}), setInterval(() => pubsub.publish('timer', { uptime: Math.floor(process.uptime()) }), 1000);
+});
 const typeDefs = [schemaIndex];
 const resolvers = {
   URL: {},
@@ -459,7 +462,9 @@ const resolvers = {
   Subscription: {
     uptime: { subscribe: () => pubsub.asyncIterator(['timer']) },
     moments: {
-      subscribe: withFilter(() => pubsub.asyncIterator('memory'), ({ messenger: { payload } }, variables) => payload.channel === variables.channel)
+      subscribe: withFilter(() => pubsub.asyncIterator(['memory']), ({ moments: { channel } }, variables) => {
+        return channel === variables.channel;
+      })
     },
     channel: {
       subscribe: withFilter(() => pubsub.asyncIterator('broadcast'), (payload, variables, ctx) => payload.to === ctx.user.id)
@@ -483,6 +488,11 @@ const resolvers = {
   Moment: {},
   Post: {}
 };
+setInterval(() => pubsub.publish('timer', {
+  uptime: Math.floor(process.uptime())
+}), 1000), setInterval(() => pubsub.publish('memory', {
+  moments: { id: 'adsgsg', by: 'o8dyvos', channel: '345235' }
+}), 3000);
 var schema = makeExecutableSchema({
   typeDefs,
   resolvers,
@@ -610,6 +620,16 @@ var index = async function ({
   const getRootValue = async ctx => Object.assign({
     tasks: ['hey', 'there']
   }, ctx ? await helpers.getUser(ctx.state.token) : {});
+  const graphql$$1 = graphqlKoa(async ctx => ({
+    schema: schema$$1,
+    rootValue: await getRootValue(ctx),
+    context: ctx,
+    debug
+  }));
+  const graphiql = graphiqlKoa({
+    endpointURL: hrefs.graphql,
+    subscriptionsEndpoint: hrefs.graphqlSub
+  });
   routes.push({
     path: '/*',
     verbs: ['get'],
@@ -621,18 +641,18 @@ var index = async function ({
         networkInterface
       })), next();
     }
+  }, {
+    path: '/graphql',
+    verbs: ['get', 'post'],
+    use: graphql$$1
+  }, {
+    path: '/graphiql',
+    verbs: ['get'],
+    use: graphiql
   });
   const app$$1 = app({
-    graphql: graphqlKoa(async ctx => ({
-      schema: schema$$1,
-      rootValue: await getRootValue(ctx),
-      context: ctx,
-      debug
-    })),
-    graphiql: graphiqlKoa({
-      endpointURL: hrefs.graphql,
-      subscriptionsEndpoint: hrefs.graphqlSub
-    }),
+    graphql: graphql$$1,
+    graphiql,
     keys,
     paths,
     routes,
@@ -646,9 +666,13 @@ var index = async function ({
   return server.listen(port, () => {
     console.log(`listening on port: ${port}`), SubscriptionServer.create({
       keepAlive: 1000,
+      rootValue: getRootValue,
       schema: schema$$1,
       execute,
-      subscribe
+      subscribe,
+      onConnect: params => {
+        return console.log('params:', params), !0;
+      }
     }, { server });
   }), { server, app: app$$1 };
 };

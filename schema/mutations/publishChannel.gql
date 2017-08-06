@@ -1,0 +1,9 @@
+mutation PublishChannel($url: String!, $title: String!, $description: String!, $tags: [String]) {
+  publishChannel(url: $url, title: $title, description: $description, tags: $tags) {
+    id
+    url
+    title
+    description
+    tags
+  }
+}

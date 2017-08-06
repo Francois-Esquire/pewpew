@@ -1,22 +1,16 @@
 const mongoose = require('mongoose');
 const { makeExecutableSchema } = require('graphql-tools');
 const { withFilter, PubSub } = require('graphql-subscriptions');
-// const { RedisPubSub } = require('graphql-redis-subscriptions');
 
 const Users = mongoose.model('User');
 const Channels = mongoose.model('Channel');
 const Posts = mongoose.model('Post');
-
-// const pubsub = RedisPubSub({
-//   triggerTransform: (trigger, { path }) => [trigger, ...path].join('.'),
-// });
 
 const pubsub = new PubSub();
 
 ['publish', 'subscribe', 'unsubscribe', 'asyncIterator']
   .forEach((key) => { pubsub[key] = pubsub[key].bind(pubsub); });
 
-setInterval(() => pubsub.publish('timer', { uptime: Math.floor(process.uptime()) }), 1000);
 const schemaIndex = require('../schema/index.graphql');
 
 const typeDefs = [schemaIndex];
@@ -91,8 +85,15 @@ const resolvers = {
   Subscription: {
     uptime: { subscribe: () => pubsub.asyncIterator(['timer']) },
     moments: {
-      subscribe: withFilter(() => pubsub.asyncIterator('memory'),
-        ({ messenger: { payload } }, variables) => payload.channel === variables.channel),
+      // resolve: (moments, args) => {
+      //   // console.log(payload);
+      //   return { data: { moments } };
+      // },
+      subscribe: withFilter(() => pubsub.asyncIterator(['memory']),
+        ({ moments: { channel } }, variables) => {
+          // console.log(channel, variables);
+          return channel === variables.channel;
+        }),
     },
     channel: {
       // resolve: (payload, args) => payload,
@@ -110,6 +111,13 @@ const resolvers = {
   Moment: {},
   Post: {},
 };
+
+setInterval(() => pubsub.publish('timer', {
+  uptime: Math.floor(process.uptime()),
+}), 1000);
+setInterval(() => pubsub.publish('memory', {
+  moments: { id: 'adsgsg', by: 'o8dyvos', channel: '345235' },
+}), 3000);
 
 module.exports = makeExecutableSchema({
   typeDefs,

@@ -1,5 +1,9 @@
 subscription Channels(){
   channels() {
-    
+    id
+    url
+    title
+    tags
+    present
   }
 }

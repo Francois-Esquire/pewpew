@@ -245,8 +245,8 @@ var Application$1 = (function (superclass) {
     // eslint-disable-next-line no-confusing-arrow
     const Modal = function () { return modal.isOpen && modal.view ?
       (React.createElement( modal.view, { modal: modal, match: match, location: location, history: history })) : null; };
-    return (React.createElement( 'main', { id: "view" },
-      React.createElement( Header, { channel: channel.url, openMenu: this.openMenu }),
+    return (React.createElement( 'main', { id: "view" }
+                                                                     ,
       React.createElement( reactRouterDom.Switch, null,
         React.createElement( reactRouterDom.Route, {
           exact: true, path: "/", render: function () { return (React.createElement( 'section', { className: "home" }

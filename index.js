@@ -89,10 +89,10 @@ const fs = require('fs');
       sentry.on('ready', async () => {
         const mongoose = require('mongoose');
 
-        // const redis = require('redis')
-        //   .createClient(urls.redis);
-        // eslint-disable-next-line no-use-before-define
-        // .on('connect', runServer);
+        const redis = require('redis')
+          .createClient(urls.redis)
+          // eslint-disable-next-line no-use-before-define
+          .on('connect', runServer);
 
         function runServer() {
           if (server && server.listening) {
@@ -109,7 +109,7 @@ const fs = require('fs');
             paths,
             hrefs,
             keys,
-            // redis,
+            redis,
             render: require('./dist/render.js'),
             assets: { css, scripts, meta, hash: webpack.hash },
             debug,
@@ -185,7 +185,6 @@ const fs = require('fs');
         }
         // console.log(`Master ${process.pid} is running`);
       } else {
-        // console.log(`Worker ${process.pid} started`);
         server({
           protocol,
           domains,

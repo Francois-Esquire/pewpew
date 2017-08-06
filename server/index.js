@@ -44,6 +44,18 @@ module.exports = async function Server({
     tasks: ['hey', 'there'],
   }, ctx ? await helpers.getUser(ctx.state.token) : {});
 
+  const graphql = graphqlKoa(async ctx => ({
+    schema,
+    rootValue: await getRootValue(ctx),
+    context: ctx,
+    debug,
+  }));
+
+  const graphiql = graphiqlKoa({
+    endpointURL: hrefs.graphql,
+    subscriptionsEndpoint: hrefs.graphqlSub,
+  });
+
   routes.push({
     path: '/*',
     verbs: ['get'],
@@ -60,19 +72,19 @@ module.exports = async function Server({
 
       return next();
     },
+  }, {
+    path: '/graphql',
+    verbs: ['get', 'post'],
+    use: graphql,
+  }, {
+    path: '/graphiql',
+    verbs: ['get'],
+    use: graphiql,
   });
 
   const app = require('./app')({
-    graphql: graphqlKoa(async ctx => ({
-      schema,
-      rootValue: await getRootValue(ctx),
-      context: ctx,
-      debug,
-    })),
-    graphiql: graphiqlKoa({
-      endpointURL: hrefs.graphql,
-      subscriptionsEndpoint: hrefs.graphqlSub,
-    }),
+    graphql,
+    graphiql,
     keys,
     paths,
     routes,
@@ -90,13 +102,20 @@ module.exports = async function Server({
     console.log(`listening on port: ${port}`);
     SubscriptionServer.create({
       keepAlive: 1000,
-      // rootValue: getRootValue,
+      rootValue: getRootValue,
       schema,
       execute,
       subscribe,
-      // onOperation: message => console.log('message: ', message),
+      // onOperation: (message, params) => {
+      //   console.log('message: ', message, '\nparams: ', params);
+      //   // console.log('ws: ', Object.keys(ws), ws._socket);
+      //   return params;
+      // },
       // onOperationComplete: (ws, opId) => console.log('ws: ', Object.keys(ws), 'opId', opId),
-      // onConnect: params => console.log('params:', params),
+      onConnect: (params) => {
+        console.log('params:', params);
+        return true;
+      },
     }, { server });
   });
 

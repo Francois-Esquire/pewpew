@@ -8,7 +8,7 @@ const redis = process.env.REDIS_URL;// || 'redis://127.0.0.1:6379/1';
 
 const ws = debug ? 'ws://' : 'wss://';
 const protocol = debug ? 'http://' : 'https://';
-const host = debug ? `localhost:${port}/` : 'pew-pew-pew.herokuapp.com';
+const host = debug ? `localhost:${port}` : 'pew-pew-pew.herokuapp.com';
 
 const domains = {
   graphql: 'graphql',
@@ -17,15 +17,21 @@ const domains = {
   upload: 'upload',
 };
 
+const temp = {
+  graphql: `${protocol}${host}/${domains.graphql}`,
+  graphiql: `${protocol}${domains.graphql}.${host}/${domains.graphiql}`,
+  graphqlSub: `${ws}${host}/${domains.graphql}`,
+};
+
 module.exports = {
   protocol,
   domains,
   host,
   port,
   hrefs: {
-    graphql: `${protocol}${domains.graphql}.${host}`,
-    graphiql: `${protocol}${domains.graphql}.${host}/${domains.graphiql}`,
-    graphqlSub: `${ws}${domains.graphql}.${host}`,
+    graphql: temp.graphql || `${protocol}${domains.graphql}.${host}`,
+    graphiql: temp.graphiql || `${protocol}${domains.graphql}.${host}/${domains.graphiql}`,
+    graphqlSub: temp.graphqlSub || `${ws}${domains.graphql}.${host}`,
     content: `${protocol}${domains.content}.${host}`,
     upload: `${protocol}${domains.upload}.${host}`,
   },

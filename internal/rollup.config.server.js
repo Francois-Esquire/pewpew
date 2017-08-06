@@ -1,5 +1,4 @@
 const cjs = require('rollup-plugin-commonjs');
-const replace = require('rollup-plugin-replace');
 const babel = require('rollup-plugin-babel');
 const cleanup = require('rollup-plugin-cleanup');
 
@@ -16,9 +15,6 @@ module.exports = {
   interop: false,
   external: Object.keys(pkg.dependencies).concat(['http', 'fs']),
   plugins: [
-    // replace({
-    //   'debug': JSON.stringify(debug),
-    // }),
     cjs({
       ignoreGlobal: true,
       exclude: 'node_modules/**',
