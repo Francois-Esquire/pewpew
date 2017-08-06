@@ -6,12 +6,12 @@ var apolloLocalQuery = require('apollo-local-query');
 var subscriptionsTransportWs = require('subscriptions-transport-ws');
 var graphqlServerKoa = require('graphql-server-koa');
 var mongoose = require('mongoose');
-var graphqlTools = require('graphql-tools');
-var graphqlSubscriptions = require('graphql-subscriptions');
 var gridfsStream = require('gridfs-stream');
 var jsonwebtoken = require('jsonwebtoken');
 var validator = require('validator');
 var bcryptNodejs = require('bcrypt-nodejs');
+var graphqlTools = require('graphql-tools');
+var graphqlSubscriptions = require('graphql-subscriptions');
 var koa = require('koa');
 var koaSubdomain = require('koa-subdomain');
 var koaRouter = require('koa-router');
@@ -23,6 +23,212 @@ var koaMulter = require('koa-multer');
 var koaFavicon = require('koa-favicon');
 var multerGridfsStorage = require('multer-gridfs-storage');
 var microseconds = require('microseconds');
+
+const PostSchema = new mongoose.Schema({
+  by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: !0
+  },
+  channel: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Channel',
+    required: !0
+  },
+  content: {
+    type: String,
+    required: !0,
+    minlength: 1,
+    trim: !0
+  },
+  kind: {
+    type: String,
+    required: !0,
+    enum: {
+      message: '`{VALUE}` is not a valid `{PATH}`.',
+      values: ['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'LINK']
+    }
+  }
+}, {
+  toObject: {
+    getters: !1,
+    virtuals: !0
+  }
+});
+PostSchema.virtual('createdAt').get(function () {
+  // eslint-disable-next-line no-underscore-dangle
+  return this._id.getTimestamp();
+}), PostSchema.statics = {
+  findMessage(id) {
+    return this.findById(id);
+  },
+  findByChannel(channel) {
+    return this.find({ channel });
+  },
+  findByUserId(by) {
+    return this.find({ by });
+  },
+  async create(by, channel, content, kind) {
+    const Moment = this;
+    const moment = await new Moment({ by, channel, content, kind }).save();
+    return moment;
+  },
+  async forget(id, user) {
+    const moment = await this.findMessage(id);
+    return !(moment.by !== user.id) && (moment.remove(), !0);
+  }
+};
+const Post = mongoose.model('Post', PostSchema);
+
+const ChannelSchema = new mongoose.Schema({
+  by: mongoose.Schema.Types.ObjectId,
+  url: String,
+  title: String,
+  description: String,
+  tags: [String],
+  members: [mongoose.Schema.Types.ObjectId],
+  maintainers: [mongoose.Schema.Types.ObjectId],
+  private: {
+    type: Boolean,
+    default: !1
+  }
+});
+ChannelSchema.pre('save', function (next) {
+  const channel = this;
+  return channel.isNew && (!channel.members && (channel.members = []), !channel.maintainers && (channel.maintainers = []), channel.maintainers.push(channel.by)), next();
+}), ChannelSchema.statics = {
+  search(count, tags = []) {
+    return this.limit(count).find({
+      $and: [{ private: !1 }, { $in: { tags } }]
+    });
+  },
+  async publish({ url, title, description, tags }, user) {
+    const Channel = this;
+    const channel = await new Channel({
+      by: user.id,
+      url,
+      title,
+      description,
+      tags
+    }).save();
+    return channel;
+  },
+  async update(id, user) {
+    const channel = await this.findOne(id);
+    if (channel) {
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (maintainer >= 0) return await channel.save(), !0;
+    }
+    return !1;
+  },
+  async join(id, user) {
+    const channel = await this.findOne(id);
+    if (channel && !channel.private) {
+      const member = channel.members.indexOf(user.id);
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (member < 0 || maintainer < 0) return channel.members.push(user.id), await channel.save(), !0;
+    }
+    return !1;
+  },
+  async abandon(id, user) {
+    const channel = await this.findOne(id);
+    if (channel) {
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (maintainer >= 0) return channel.members.length ? (channel.maintainers.splice(maintainer, 1), await channel.save()) : await channel.remove(), !0;
+    }
+    return !1;
+  }
+}, ChannelSchema.methods = {};
+const Channel = mongoose.model('Channel', ChannelSchema);
+
+const UserSchema = new mongoose.Schema({
+  password: String,
+  handle: {
+    type: String,
+    trim: !0,
+    minlength: 1,
+    lowercase: !0,
+    unique: !0,
+    sparse: !0
+  },
+  email: {
+    type: String,
+    trim: !0,
+    minlength: 1,
+    lowercase: !0,
+    unique: !0,
+    sparse: !0,
+    validate: {
+      validator: email => validator.isEmail(email),
+      message: '{VALUE} is not a valid email.'
+    }
+  },
+  avatar: String
+});
+UserSchema.pre('save', function (next) {
+  const user = this;
+  user.isModified('password') ? bcryptNodejs.genSalt(10, (err, salt) => {
+    return err ? next(err) : void bcryptNodejs.hash(user.password, salt, null, (err, hash) => {
+      return err ? next(err) : void (user.password = hash, next());
+    });
+  }) : next();
+}), UserSchema.statics = {
+  join() {},
+  createUser() {},
+  login() {},
+  setPassword(_id, password) {
+    return this.findById(_id).then(user => user.setPassword(password));
+  },
+  changePassword(_id, { pass, word }) {
+    return this.findById(_id).then(user => user.changePassword(pass, word));
+  },
+  changeHandle(_id, handle) {
+    return this.findById(_id).then(user => user.changeHandle(handle));
+  },
+  changeEmail(_id, email) {
+    return this.findById(_id).then(user => user.changeEmail(email));
+  },
+  deleteAccount(_id) {
+    return this.findById(_id).then(user => user.deleteAccount());
+  }
+}, UserSchema.methods = {
+  logout(ctx) {
+    return ctx.session.token = null, !0;
+  },
+  async changePassword(oldPassword, password) {
+    const isMatch = await this.comparePassword(oldPassword);
+    return isMatch ? (this.password = password, await this.save(), !0) : new Error('Wrong password.');
+  },
+  async changeHandle(handle) {
+    return this.handle = handle, await this.save(), !0;
+  },
+  async changeEmail(email) {
+    return this.email = email, await this.save(), !0;
+  },
+  async deleteAccount() {
+    return await this.remove(), !0;
+  },
+  comparePassword(candidatePassword) {
+    return new Promise((resolve, reject) => bcryptNodejs.compare(candidatePassword, this.password, (error, isMatch) => error ? reject(error) : resolve(isMatch)));
+  }
+};
+const User = mongoose.model('User', UserSchema);
+
+mongoose.Promise = global.Promise;
+var db = async ({ debug, uri, options }) => {
+  const mongodbUri = uri || process.env.MONGODB_URI || 'mongodb://localhost:27017/pewpew';
+  const mongodbOptions = options || {
+    useMongoClient: !0,
+    reconnectTries: Number.MAX_VALUE
+  };
+  debug && mongoose.set('debug', !0);
+  const connection = await mongoose.connect(mongodbUri, mongodbOptions);
+  const gfs = gridfsStream(connection.db, mongoose.mongo);
+  return {
+    connection,
+    gfs
+  };
+};
 
 const schema$2 = `scalar URL
 
@@ -284,212 +490,6 @@ var schema = makeExecutableSchema({
   allowUndefinedInResolve: !0
 });
 
-const PostSchema = new mongoose.Schema({
-  by: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: !0
-  },
-  channel: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Channel',
-    required: !0
-  },
-  content: {
-    type: String,
-    required: !0,
-    minlength: 1,
-    trim: !0
-  },
-  kind: {
-    type: String,
-    required: !0,
-    enum: {
-      message: '`{VALUE}` is not a valid `{PATH}`.',
-      values: ['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'LINK']
-    }
-  }
-}, {
-  toObject: {
-    getters: !1,
-    virtuals: !0
-  }
-});
-PostSchema.virtual('createdAt').get(function () {
-  // eslint-disable-next-line no-underscore-dangle
-  return this._id.getTimestamp();
-}), PostSchema.statics = {
-  findMessage(id) {
-    return this.findById(id);
-  },
-  findByChannel(channel) {
-    return this.find({ channel });
-  },
-  findByUserId(by) {
-    return this.find({ by });
-  },
-  async create(by, channel, content, kind) {
-    const Moment = this;
-    const moment = await new Moment({ by, channel, content, kind }).save();
-    return moment;
-  },
-  async forget(id, user) {
-    const moment = await this.findMessage(id);
-    return !(moment.by !== user.id) && (moment.remove(), !0);
-  }
-};
-const Post = mongoose.model('Post', PostSchema);
-
-const ChannelSchema = new mongoose.Schema({
-  by: mongoose.Schema.Types.ObjectId,
-  url: String,
-  title: String,
-  description: String,
-  tags: [String],
-  members: [mongoose.Schema.Types.ObjectId],
-  maintainers: [mongoose.Schema.Types.ObjectId],
-  private: {
-    type: Boolean,
-    default: !1
-  }
-});
-ChannelSchema.pre('save', function (next) {
-  const channel = this;
-  return channel.isNew && (!channel.members && (channel.members = []), !channel.maintainers && (channel.maintainers = []), channel.maintainers.push(channel.by)), next();
-}), ChannelSchema.statics = {
-  search(count, tags = []) {
-    return this.limit(count).find({
-      $and: [{ private: !1 }, { $in: { tags } }]
-    });
-  },
-  async publish({ url, title, description, tags }, user) {
-    const Channel = this;
-    const channel = await new Channel({
-      by: user.id,
-      url,
-      title,
-      description,
-      tags
-    }).save();
-    return channel;
-  },
-  async update(id, user) {
-    const channel = await this.findOne(id);
-    if (channel) {
-      const maintainer = channel.maintainers.indexOf(user.id);
-      if (maintainer >= 0) return await channel.save(), !0;
-    }
-    return !1;
-  },
-  async join(id, user) {
-    const channel = await this.findOne(id);
-    if (channel && !channel.private) {
-      const member = channel.members.indexOf(user.id);
-      const maintainer = channel.maintainers.indexOf(user.id);
-      if (member < 0 || maintainer < 0) return channel.members.push(user.id), await channel.save(), !0;
-    }
-    return !1;
-  },
-  async abandon(id, user) {
-    const channel = await this.findOne(id);
-    if (channel) {
-      const maintainer = channel.maintainers.indexOf(user.id);
-      if (maintainer >= 0) return channel.members.length ? (channel.maintainers.splice(maintainer, 1), await channel.save()) : await channel.remove(), !0;
-    }
-    return !1;
-  }
-}, ChannelSchema.methods = {};
-const Channel = mongoose.model('Channel', ChannelSchema);
-
-const UserSchema = new mongoose.Schema({
-  password: String,
-  handle: {
-    type: String,
-    trim: !0,
-    minlength: 1,
-    lowercase: !0,
-    unique: !0,
-    sparse: !0
-  },
-  email: {
-    type: String,
-    trim: !0,
-    minlength: 1,
-    lowercase: !0,
-    unique: !0,
-    sparse: !0,
-    validate: {
-      validator: email => validator.isEmail(email),
-      message: '{VALUE} is not a valid email.'
-    }
-  },
-  avatar: String
-});
-UserSchema.pre('save', function (next) {
-  const user = this;
-  user.isModified('password') ? bcryptNodejs.genSalt(10, (err, salt) => {
-    return err ? next(err) : void bcryptNodejs.hash(user.password, salt, null, (err, hash) => {
-      return err ? next(err) : void (user.password = hash, next());
-    });
-  }) : next();
-}), UserSchema.statics = {
-  join() {},
-  createUser() {},
-  login() {},
-  setPassword(_id, password) {
-    return this.findById(_id).then(user => user.setPassword(password));
-  },
-  changePassword(_id, { pass, word }) {
-    return this.findById(_id).then(user => user.changePassword(pass, word));
-  },
-  changeHandle(_id, handle) {
-    return this.findById(_id).then(user => user.changeHandle(handle));
-  },
-  changeEmail(_id, email) {
-    return this.findById(_id).then(user => user.changeEmail(email));
-  },
-  deleteAccount(_id) {
-    return this.findById(_id).then(user => user.deleteAccount());
-  }
-}, UserSchema.methods = {
-  logout(ctx) {
-    return ctx.session.token = null, !0;
-  },
-  async changePassword(oldPassword, password) {
-    const isMatch = await this.comparePassword(oldPassword);
-    return isMatch ? (this.password = password, await this.save(), !0) : new Error('Wrong password.');
-  },
-  async changeHandle(handle) {
-    return this.handle = handle, await this.save(), !0;
-  },
-  async changeEmail(email) {
-    return this.email = email, await this.save(), !0;
-  },
-  async deleteAccount() {
-    return await this.remove(), !0;
-  },
-  comparePassword(candidatePassword) {
-    return new Promise((resolve, reject) => bcryptNodejs.compare(candidatePassword, this.password, (error, isMatch) => error ? reject(error) : resolve(isMatch)));
-  }
-};
-const User = mongoose.model('User', UserSchema);
-
-mongoose.Promise = global.Promise;
-var db = async ({ debug, uri, options }) => {
-  const mongodbUri = uri || process.env.MONGODB_URI || 'mongodb://localhost:27017/pewpew';
-  const mongodbOptions = options || {
-    useMongoClient: !0,
-    reconnectTries: Number.MAX_VALUE
-  };
-  debug && mongoose.set('debug', !0);
-  const connection = await mongoose.connect(mongodbUri, mongodbOptions);
-  const gfs = gridfsStream(connection.db, mongoose.mongo);
-  return {
-    connection,
-    gfs
-  };
-};
-
 var helpers = {
   async getUser(token, secret) {
     if (!token || !secret) return { user: null, token: null };
@@ -600,11 +600,13 @@ var index = async function ({
     domains,
     redis
   };
+  context.db = db$$1 || (await db({ debug }));
   const routes = [];
   const middleware = [];
-  debug ? (webpack && middleware.push(webpack.middleware), context.db = db$$1) : context.db = await db({ debug }), middleware.push(async (ctx, next) => {
+  debug && webpack && middleware.push(webpack.middleware), middleware.push(async (ctx, next) => {
     ctx.set({ Allow: 'GET, POST' }), await next();
   });
+  const schema$$1 = schema;
   const getRootValue = async ctx => Object.assign({
     tasks: ['hey', 'there']
   }, ctx ? await helpers.getUser(ctx.state.token) : {});
@@ -613,7 +615,7 @@ var index = async function ({
     verbs: ['get'],
     use: async (ctx, next) => {
       if (!/text\/html/.test(ctx.headers.accept)) return next();
-      const networkInterface = createLocalInterface({ execute }, schema, { rootValue: await getRootValue(ctx), context: ctx });
+      const networkInterface = createLocalInterface({ execute }, schema$$1, { rootValue: await getRootValue(ctx), context: ctx });
       return await render(ctx, Object.assign({}, assets, {
         hrefs,
         networkInterface
@@ -622,7 +624,7 @@ var index = async function ({
   });
   const app$$1 = app({
     graphql: graphqlKoa(async ctx => ({
-      schema,
+      schema: schema$$1,
       rootValue: await getRootValue(ctx),
       context: ctx,
       debug
@@ -644,7 +646,7 @@ var index = async function ({
   return server.listen(port, () => {
     console.log(`listening on port: ${port}`), SubscriptionServer.create({
       keepAlive: 1000,
-      schema,
+      schema: schema$$1,
       execute,
       subscribe
     }, { server });

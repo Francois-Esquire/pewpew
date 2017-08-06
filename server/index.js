@@ -4,8 +4,6 @@ const { createLocalInterface } = require('apollo-local-query');
 const { SubscriptionServer } = require('subscriptions-transport-ws');
 const { graphqlKoa, graphiqlKoa } = require('graphql-server-koa');
 
-const schema = require('./schema.js');
-
 module.exports = async function Server({
   domains,
   host,
@@ -24,6 +22,7 @@ module.exports = async function Server({
     domains,
     redis,
   };
+  context.db = db || await require('./db')({ debug });
 
   const routes = [];
 
@@ -31,9 +30,6 @@ module.exports = async function Server({
 
   if (debug) {
     if (webpack) middleware.push(webpack.middleware);
-    context.db = db;
-  } else {
-    context.db = await require('./db')({ debug });
   }
 
   middleware.push(async (ctx, next) => {
@@ -41,6 +37,7 @@ module.exports = async function Server({
     await next();
   });
 
+  const schema = require('./schema.js');
   const helpers = require('./helpers');
 
   const getRootValue = async ctx => Object.assign({
