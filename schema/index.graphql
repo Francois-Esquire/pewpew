@@ -137,6 +137,7 @@ type Mutation {
 }
 
 type Subscription {
+  uptime: Int
   moments(
     channel: ID!
     ): Moment

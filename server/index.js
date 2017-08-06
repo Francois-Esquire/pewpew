@@ -1,8 +1,12 @@
 const http = require('http');
+const { execute, subscribe } = require('graphql');
+const { createLocalInterface } = require('apollo-local-query');
+const { SubscriptionServer } = require('subscriptions-transport-ws');
+const { graphqlKoa, graphiqlKoa } = require('graphql-server-koa');
+
+const schema = require('./schema.js');
 
 module.exports = async function Server({
-  unix_socket,
-  protocol,
   domains,
   host,
   port,
@@ -16,34 +20,38 @@ module.exports = async function Server({
   webpack,
   db,
 }) {
+  const helpers = require('./helpers');
+
+  const context = {
+    helpers,
+    domains,
+    redis,
+  };
+
   const routes = [];
 
   const middleware = [];
 
-  const context = {
-    helpers: require('./helpers'),
-    domains,
-    redis,
-  };
-  // console.log('cpus: ', require('os').cpus().length);
-  // setInterval(() => redis.get('uptime', (error, uptime) => console.log('uptime', uptime)), 2000);
+  // setInterval(() => redis.set('uptime', process.uptime()), 1000);
+  // setInterval(() => redis.get('uptime', (error, uptime) => {
+  //   // console.log('uptime', uptime);
+  // }), 2000);
 
   if (debug) {
-    if (webpack) {
-      context.webpack = webpack;
-      middleware.push(webpack.middleware);
-    }
+    if (webpack) middleware.push(webpack.middleware);
     context.db = db;
   } else {
     context.db = await require('./db')({ debug });
   }
 
-  const {
-    graphql,
-    graphiql,
-    localInterface,
-    createSubscriptionServer,
-  } = require('./graphql')({ debug, protocol, domain: domains.graphql, host, port, hrefs });
+  middleware.push(async (ctx, next) => {
+    ctx.set({ Allow: 'GET, POST' });
+    await next();
+  });
+
+  const getRootValue = async ctx => Object.assign({
+    tasks: ['hey', 'there'],
+  }, ctx ? await helpers.getUser(ctx.state.token) : {});
 
   routes.push({
     path: '/*',
@@ -51,42 +59,54 @@ module.exports = async function Server({
     use: async (ctx, next) => {
       if (!/text\/html/.test(ctx.headers.accept)) return next();
 
+      const networkInterface = createLocalInterface(
+        { execute }, schema, { rootValue: await getRootValue(ctx), context: ctx });
+
       await render(ctx, Object.assign({}, assets, {
         hrefs,
-        networkInterface: await localInterface(ctx),
+        networkInterface,
       }));
 
       return next();
     },
   });
 
-  middleware.push(async (ctx, next) => {
-    ctx.set({ Allow: 'GET, POST' });
-    await next();
-  });
-
   const app = require('./app')({
-    gql: { graphql, graphiql },
+    graphql: graphqlKoa(async ctx => ({
+      schema,
+      rootValue: await getRootValue(ctx),
+      context: ctx,
+      debug,
+    })),
+    graphiql: graphiqlKoa({
+      endpointURL: hrefs.graphql,
+      subscriptionsEndpoint: hrefs.graphqlSub,
+    }),
     keys,
     paths,
     routes,
     middleware,
     context,
     domains,
+    host,
     debug,
   });
+
   const server = http.createServer(app.callback());
 
-  // eslint-disable-next-line camelcase
-  server.listen(unix_socket || port, () => {
-    // eslint-disable-next-line camelcase
-    if (unix_socket) {
-      // eslint-disable-next-line
-      console.log(`app is listening on unix socket: ${unix_socket}`);
-      require('fs').openSync('/tmp/app-initialized', 'w');
-      // eslint-disable-next-line no-console
-    } else console.log(`listening on port: ${port}`);
-    createSubscriptionServer(server);
+  server.listen(port, () => {
+    // eslint-disable-next-line no-console
+    console.log(`listening on port: ${port}`);
+    SubscriptionServer.create({
+      keepAlive: 1000,
+      // rootValue: getRootValue,
+      schema,
+      execute,
+      subscribe,
+      // onOperation: message => console.log('message: ', message),
+      // onOperationComplete: (ws, opId) => console.log('ws: ', Object.keys(ws), 'opId', opId),
+      onConnect: params => console.log('params:', params),
+    }, { server });
   });
 
   return { server, app };

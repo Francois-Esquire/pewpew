@@ -13,7 +13,7 @@ module.exports = function graphqlConfig({
 
   const getRootValue = async ctx => Object.assign({
     tasks: ['hey', 'there'],
-  }, await ctx.helpers.getUser(ctx.state.token));
+  }, ctx ? await ctx.helpers.getUser(ctx.state.token) : {});
 
   return {
     localInterface: async ctx => createLocalInterface(
@@ -32,17 +32,12 @@ module.exports = function graphqlConfig({
       const { keepAlive = 1000 } = options;
 
       return SubscriptionServer.create({
+        rootValue: getRootValue,
         schema,
         execute,
         subscribe,
         keepAlive,
-      }, (server ? {
-          server,
-          // path: hrefs.graphql,
-        } : {
-          host,
-          port,
-        }));
+      }, { server });
     },
   };
 };

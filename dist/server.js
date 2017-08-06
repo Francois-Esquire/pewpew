@@ -1,17 +1,17 @@
 'use strict';
 
 var http = require('http');
+var graphql = require('graphql');
+var apolloLocalQuery = require('apollo-local-query');
+var subscriptionsTransportWs = require('subscriptions-transport-ws');
+var graphqlServerKoa = require('graphql-server-koa');
 var mongoose = require('mongoose');
+var graphqlTools = require('graphql-tools');
+var graphqlSubscriptions = require('graphql-subscriptions');
 var jsonwebtoken = require('jsonwebtoken');
 var gridfsStream = require('gridfs-stream');
 var validator = require('validator');
 var bcryptNodejs = require('bcrypt-nodejs');
-var graphql = require('graphql');
-var graphqlServerKoa = require('graphql-server-koa');
-var subscriptionsTransportWs = require('subscriptions-transport-ws');
-var apolloLocalQuery = require('apollo-local-query');
-var graphqlTools = require('graphql-tools');
-var graphqlSubscriptions = require('graphql-subscriptions');
 var koa = require('koa');
 var koaSubdomain = require('koa-subdomain');
 var koaRouter = require('koa-router');
@@ -23,7 +23,266 @@ var koaMulter = require('koa-multer');
 var koaFavicon = require('koa-favicon');
 var multerGridfsStorage = require('multer-gridfs-storage');
 var microseconds = require('microseconds');
-var fs = require('fs');
+
+const schema$2 = `scalar URL
+
+interface Node {
+  id: ID!
+}
+
+interface User {
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments(channel: ID): [Post]
+}
+
+type Author implements Node, User {
+  id: ID!
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments(channel: ID): [Post]
+  email: String
+}
+
+type Contributor implements Node, User {
+  id: ID!
+  handle: String!
+  avatar: URL
+  channels: [Channel]
+  moments(channel: ID): [Post]
+}
+
+type Channel implements Node {
+  id: ID!
+  by: ID!
+  url: URL!
+  title: String
+  description: String
+  tags: [String]
+  members: [Contributor]
+  present: Int
+  private: Boolean
+  moments(
+    limit: Int = 64,
+    kinds: [Types]
+    ): [Post]
+}
+
+interface Moment {
+  id: ID!
+  by: ID!
+  kind: Types!
+  content: String!
+}
+
+enum Types {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  LINK
+}
+
+type Post implements Moment {
+  id: ID!
+  by: ID!
+  kind: Types!
+  content: String!
+  reactions: [Post]
+  channel: ID!
+}
+
+type Query {
+  tasks: [String]
+  me: Author
+  author(
+    id: ID
+    ): Contributor
+  channel(
+    id: ID
+    ): Channel
+  channels(
+    limit: Int = 16
+    ): [Channel]
+}
+
+type Mutation {
+  join(
+    handle: String!
+    ): Contributor
+  signup(
+    email: String!
+    handle: String!
+    password: String!
+    ): Author
+  login(
+    handle: String!
+    password: String!
+    ): Author
+  logout(
+    session: String
+    ): Boolean
+  changePassword(
+    pass: String!
+    word: String!
+    ): Boolean
+  changeHandle(
+    handle: String!
+    ): Boolean
+  changeEmail(
+    email: String!
+    ): Boolean
+  deleteAccount: Boolean
+
+  publishChannel(
+    url: String!
+    title: String
+    description: String
+    tags: [String]
+    ): Channel
+  updateChannel(
+    id: ID!
+    ): Boolean
+  joinChannel(
+    id: ID!
+    ): Boolean
+  abandonChannel(
+    id: ID!
+    ): Boolean
+
+  remember(
+    channel: String!
+    content: String!
+    kind: String!
+    ): Moment
+  forget(
+    id: String!
+    ): Moment
+}
+
+type Subscription {
+  uptime: Int
+  moments(
+    channel: ID!
+    ): Moment
+  channel(
+    id: ID!
+    ): Channel
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+`;
+
+
+var index$2 = Object.freeze({
+	default: schema$2
+});
+
+var schemaIndex = ( index$2 && schema$2 ) || index$2;
+
+const { makeExecutableSchema } = graphqlTools;
+const { withFilter, PubSub } = graphqlSubscriptions;
+const Users = mongoose.model('User');
+const Channels = mongoose.model('Channel');
+const Posts = mongoose.model('Post');
+const pubsub = new PubSub();
+['publish', 'subscribe', 'unsubscribe', 'asyncIterator'].forEach(key => {
+  pubsub[key] = pubsub[key].bind(pubsub);
+}), setInterval(() => pubsub.publish('timer', { uptime: Math.floor(process.uptime()) }), 1000);
+const typeDefs = [schemaIndex];
+const resolvers = {
+  URL: {},
+  Query: {
+    tasks: root => root.tasks.concat('graphql'),
+    me: root => root.user,
+    author: async (root, args) => {
+      const { id } = args;
+      const user = await Users.findOne(id);
+      return user;
+    },
+    channel: async (root, { id }) => Channels.findOne(id),
+    channels: async (root, { limit }) => Channels.search(limit)
+  },
+  Mutation: {
+    async join(root, args, ctx) {
+      if (root.user) return root.user;
+      const { handle } = args;
+      const user = await Users.join(handle, ctx);
+      return user;
+    },
+    async signup(root, args, ctx) {
+      if (root.user) return root.user;
+      const { handle, email, password } = args;
+      const user = await Users.createUser(handle, email, password, ctx);
+      return user;
+    },
+    async login(root, args, ctx) {
+      if (root.user) return root.user;
+      const { handle, password } = args;
+      const user = await Users.loginUser(handle, password, ctx);
+      return user;
+    },
+    logout: (root, args, ctx) => root.user && root.user.logout(ctx),
+    changePassword: (root, { pass, word }) => root.user && root.user.changePassword(pass, word),
+    changeHandle: (root, { handle }) => root.user && root.user.changeHandle(handle),
+    changeEmail: (root, { email }) => root.user && root.user.changeEmail(email),
+    deleteAccount: root => root.user && root.user.deleteAccount(),
+    publishChannel: (root, { url, title, description, tags }) => root.user && Channels.publish({ url, title, description, tags }, root.user),
+    updateChannel: (root, { id }) => root.user && Channels.update(id, root.user),
+    joinChannel: (root, { id }) => root.user && Channels.join(id, root.user),
+    abandonChannel: (root, { id }) => root.user && Channels.abandon(id, root.user),
+    async remember(root, { channel, content, kind }) {
+      if (root.user) {
+        const memory = await Posts.create(root.user.id, channel, content, kind);
+        pubsub.publish('memory', { memory });
+      }
+    },
+    async forget(root, { id }) {
+      if (root.user) {
+        const forget = await Posts.forget(id, root.user);
+        pubsub.publish('memory', { forget });
+      }
+    }
+  },
+  Subscription: {
+    uptime: { subscribe: () => pubsub.asyncIterator(['timer']) },
+    moments: {
+      subscribe: withFilter(() => pubsub.asyncIterator('memory'), ({ messenger: { payload } }, variables) => payload.channel === variables.channel)
+    },
+    channel: {
+      subscribe: withFilter(() => pubsub.asyncIterator('broadcast'), (payload, variables, ctx) => payload.to === ctx.user.id)
+    }
+  },
+  Author: {
+    id(root) {
+      return root.id;
+    },
+    email(root) {
+      return root.email;
+    },
+    handle(root) {
+      return root.handle || null;
+    },
+    avatar(root) {
+      return root.avatar || null;
+    }
+  },
+  Channel: {},
+  Moment: {},
+  Post: {}
+};
+var schema = makeExecutableSchema({
+  typeDefs,
+  resolvers,
+  logger: { log: e => console.log(e) },
+  allowUndefinedInResolve: !0
+});
 
 var helpers = {
   async getUser(token, secret) {
@@ -244,319 +503,20 @@ var db = async ({ debug, uri, options }) => {
   };
 };
 
-const schema$2 = `scalar URL
-
-interface Node {
-  id: ID!
-}
-
-interface User {
-  handle: String!
-  avatar: URL
-  channels: [Channel]
-  moments(channel: ID): [Post]
-}
-
-type Author implements Node, User {
-  id: ID!
-  handle: String!
-  avatar: URL
-  channels: [Channel]
-  moments(channel: ID): [Post]
-  email: String
-}
-
-type Contributor implements Node, User {
-  id: ID!
-  handle: String!
-  avatar: URL
-  channels: [Channel]
-  moments(channel: ID): [Post]
-}
-
-type Channel implements Node {
-  id: ID!
-  by: ID!
-  url: URL!
-  title: String
-  description: String
-  tags: [String]
-  members: [Contributor]
-  present: Int
-  private: Boolean
-  moments(
-    limit: Int = 64,
-    kinds: [Types]
-    ): [Post]
-}
-
-interface Moment {
-  id: ID!
-  by: ID!
-  kind: Types!
-  content: String!
-}
-
-enum Types {
-  TEXT
-  IMAGE
-  VIDEO
-  AUDIO
-  LINK
-}
-
-type Post implements Moment {
-  id: ID!
-  by: ID!
-  kind: Types!
-  content: String!
-  reactions: [Post]
-  channel: ID!
-}
-
-type Query {
-  tasks: [String]
-  me: Author
-  author(
-    id: ID
-    ): Contributor
-  channel(
-    id: ID
-    ): Channel
-  channels(
-    limit: Int = 16
-    ): [Channel]
-}
-
-type Mutation {
-  join(
-    handle: String!
-    ): Contributor
-  signup(
-    email: String!
-    handle: String!
-    password: String!
-    ): Author
-  login(
-    handle: String!
-    password: String!
-    ): Author
-  logout(
-    session: String
-    ): Boolean
-  changePassword(
-    pass: String!
-    word: String!
-    ): Boolean
-  changeHandle(
-    handle: String!
-    ): Boolean
-  changeEmail(
-    email: String!
-    ): Boolean
-  deleteAccount: Boolean
-
-  publishChannel(
-    url: String!
-    title: String
-    description: String
-    tags: [String]
-    ): Channel
-  updateChannel(
-    id: ID!
-    ): Boolean
-  joinChannel(
-    id: ID!
-    ): Boolean
-  abandonChannel(
-    id: ID!
-    ): Boolean
-
-  remember(
-    channel: String!
-    content: String!
-    kind: String!
-    ): Moment
-  forget(
-    id: String!
-    ): Moment
-}
-
-type Subscription {
-  moments(
-    channel: ID!
-    ): Moment
-  channel(
-    id: ID!
-    ): Channel
-}
-
-schema {
-  query: Query
-  mutation: Mutation
-  subscription: Subscription
-}
-`;
-
-
-var index$2 = Object.freeze({
-	default: schema$2
-});
-
-var schemaIndex = ( index$2 && schema$2 ) || index$2;
-
-const { makeExecutableSchema } = graphqlTools;
-const { withFilter, PubSub } = graphqlSubscriptions;
-const Users = mongoose.model('User');
-const Channels = mongoose.model('Channel');
-const Posts = mongoose.model('Post');
-const pubsub = new PubSub();
-['publish', 'subscribe', 'unsubscribe', 'asyncIterator'].forEach(key => {
-  pubsub[key] = pubsub[key].bind(pubsub);
-});
-const typeDefs = [schemaIndex];
-const resolvers = {
-  URL: {},
-  Query: {
-    tasks: root => root.tasks.concat('graphql'),
-    me: root => root.user,
-    author: async (root, args) => {
-      const { id } = args;
-      const user = await Users.findOne(id);
-      return user;
-    },
-    channel: async (root, { id }) => Channels.findOne(id),
-    channels: async (root, { limit }) => Channels.search(limit)
-  },
-  Mutation: {
-    async join(root, args, ctx) {
-      if (root.user) return root.user;
-      const { handle } = args;
-      const user = await Users.join(handle, ctx);
-      return user;
-    },
-    async signup(root, args, ctx) {
-      if (root.user) return root.user;
-      const { handle, email, password } = args;
-      const user = await Users.createUser(handle, email, password, ctx);
-      return user;
-    },
-    async login(root, args, ctx) {
-      if (root.user) return root.user;
-      const { handle, password } = args;
-      const user = await Users.loginUser(handle, password, ctx);
-      return user;
-    },
-    logout: (root, args, ctx) => root.user && root.user.logout(ctx),
-    changePassword: (root, { pass, word }) => root.user && root.user.changePassword(pass, word),
-    changeHandle: (root, { handle }) => root.user && root.user.changeHandle(handle),
-    changeEmail: (root, { email }) => root.user && root.user.changeEmail(email),
-    deleteAccount: root => root.user && root.user.deleteAccount(),
-    publishChannel: (root, { url, title, description, tags }) => root.user && Channels.publish({ url, title, description, tags }, root.user),
-    updateChannel: (root, { id }) => root.user && Channels.update(id, root.user),
-    joinChannel: (root, { id }) => root.user && Channels.join(id, root.user),
-    abandonChannel: (root, { id }) => root.user && Channels.abandon(id, root.user),
-    async remember(root, { channel, content, kind }) {
-      if (root.user) {
-        const memory = await Posts.create(root.user.id, channel, content, kind);
-        pubsub.publish('memory', { memory });
-      }
-    },
-    async forget(root, { id }) {
-      if (root.user) {
-        const forget = await Posts.forget(id, root.user);
-        pubsub.publish('memory', { forget });
-      }
-    }
-  },
-  Subscription: {
-    moments: {
-      subscribe: withFilter(() => pubsub.asyncIterator('memory'), ({ messenger: { payload } }, variables) => payload.channel === variables.channel)
-    },
-    channel: {
-      subscribe: withFilter(() => pubsub.asyncIterator('broadcast'), (payload, variables, ctx) => payload.to === ctx.user.id)
-    }
-  },
-  Author: {
-    id(root) {
-      return root.id;
-    },
-    email(root) {
-      return root.email;
-    },
-    handle(root) {
-      return root.handle || null;
-    },
-    avatar(root) {
-      return root.avatar || null;
-    }
-  },
-  Channel: {},
-  Moment: {},
-  Post: {}
-};
-var schema = makeExecutableSchema({
-  typeDefs,
-  resolvers,
-  logger: { log: e => console.log(e) },
-  allowUndefinedInResolve: !0
-});
-
-const { execute, subscribe } = graphql;
-const { graphqlKoa, graphiqlKoa } = graphqlServerKoa;
-const { SubscriptionServer } = subscriptionsTransportWs;
-const { createLocalInterface } = apolloLocalQuery;
-var graphql$1 = function ({
-  debug,
-  host,
-  port,
-  hrefs
-}) {
-  const schema$$1 = schema;
-  const getRootValue = async ctx => Object.assign({
-    tasks: ['hey', 'there']
-  }, (await ctx.helpers.getUser(ctx.state.token)));
-  return {
-    localInterface: async ctx => createLocalInterface({ execute }, schema$$1, { rootValue: await getRootValue(ctx), context: ctx }),
-    graphql: graphqlKoa(async ctx => ({
-      schema: schema$$1,
-      rootValue: await getRootValue(ctx),
-      context: ctx,
-      debug
-    })),
-    graphiql: graphiqlKoa({
-      endpointURL: hrefs.graphql,
-      subscriptionsEndpoint: hrefs.graphqlSub
-    }),
-    createSubscriptionServer(server, options = {}) {
-      const { keepAlive = 1000 } = options;
-      return SubscriptionServer.create({
-        schema: schema$$1,
-        execute,
-        subscribe,
-        keepAlive
-      }, server ? {
-        server
-      } : {
-        host,
-        port
-      });
-    }
-  };
-};
-
 var app = function ({
-  gql: { graphql: graphql$$1, graphiql },
+  graphql: graphql$$1,
+  graphiql,
   keys,
   routes,
   middleware,
   context,
   domains,
+  host,
   debug
 }) {
   const app = new koa();
   const router = new koaRouter();
-  app.keys = keys, app.subdomainOffset = debug ? 1 : 2, Object.assign(app.context, context);
+  app.keys = keys, app.subdomainOffset = host.split('.').length, Object.assign(app.context, context);
   const api = new koaSubdomain().use(domains.graphql, new koaRouter().get(`/${domains.graphiql}`, graphiql).post('*', graphql$$1).routes());
   const content = new koaSubdomain().use(domains.content, new koaRouter().get(/^(.*)\.(.*){3,4}$/, async ctx => {
     const id = ctx.params[0];
@@ -618,9 +578,11 @@ var app = function ({
   }).use(koaBodyparser()).use(api.routes()).use(content.routes()).use(uploads.routes()).use(router.routes()).use(router.allowedMethods()), app;
 };
 
+const { execute, subscribe } = graphql;
+const { createLocalInterface } = apolloLocalQuery;
+const { SubscriptionServer } = subscriptionsTransportWs;
+const { graphqlKoa, graphiqlKoa } = graphqlServerKoa;
 var index = async function ({
-  unix_socket,
-  protocol,
   domains,
   host,
   port,
@@ -634,47 +596,61 @@ var index = async function ({
   webpack,
   db: db$$1
 }) {
-  const routes = [];
-  const middleware = [];
+  const helpers$$1 = helpers;
   const context = {
-    helpers: helpers,
+    helpers: helpers$$1,
     domains,
     redis
   };
-  debug ? (webpack && (context.webpack = webpack, middleware.push(webpack.middleware)), context.db = db$$1) : context.db = await db({ debug });
-  const {
-    graphql: graphql$$1,
-    graphiql,
-    localInterface,
-    createSubscriptionServer
-  } = graphql$1({ debug, protocol, domain: domains.graphql, host, port, hrefs });
+  const routes = [];
+  const middleware = [];
+  debug ? (webpack && middleware.push(webpack.middleware), context.db = db$$1) : context.db = await db({ debug }), middleware.push(async (ctx, next) => {
+    ctx.set({ Allow: 'GET, POST' }), await next();
+  });
+  const getRootValue = async ctx => Object.assign({
+    tasks: ['hey', 'there']
+  }, ctx ? await helpers$$1.getUser(ctx.state.token) : {});
   routes.push({
     path: '/*',
     verbs: ['get'],
     use: async (ctx, next) => {
-      return (/text\/html/.test(ctx.headers.accept) ? (await render(ctx, Object.assign({}, assets, {
-          hrefs,
-          networkInterface: await localInterface(ctx)
-        })), next()) : next()
-      );
+      if (!/text\/html/.test(ctx.headers.accept)) return next();
+      const networkInterface = createLocalInterface({ execute }, schema, { rootValue: await getRootValue(ctx), context: ctx });
+      return await render(ctx, Object.assign({}, assets, {
+        hrefs,
+        networkInterface
+      })), next();
     }
-  }), middleware.push(async (ctx, next) => {
-    ctx.set({ Allow: 'GET, POST' }), await next();
   });
   const app$$1 = app({
-    gql: { graphql: graphql$$1, graphiql },
+    graphql: graphqlKoa(async ctx => ({
+      schema,
+      rootValue: await getRootValue(ctx),
+      context: ctx,
+      debug
+    })),
+    graphiql: graphiqlKoa({
+      endpointURL: hrefs.graphql,
+      subscriptionsEndpoint: hrefs.graphqlSub
+    }),
     keys,
     paths,
     routes,
     middleware,
     context,
     domains,
+    host,
     debug
   });
   const server = http.createServer(app$$1.callback());
-  // eslint-disable-next-line camelcase
-  return server.listen(unix_socket || port, () => {
-    unix_socket ? (console.log(`app is listening on unix socket: ${unix_socket}`), fs.openSync('/tmp/app-initialized', 'w')) : console.log(`listening on port: ${port}`), createSubscriptionServer(server);
+  return server.listen(port, () => {
+    console.log(`listening on port: ${port}`), SubscriptionServer.create({
+      keepAlive: 1000,
+      schema,
+      execute,
+      subscribe,
+      onConnect: params => console.log('params:', params)
+    }, { server });
   }), { server, app: app$$1 };
 };
 

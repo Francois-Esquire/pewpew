@@ -1,7 +1,6 @@
 const fs = require('fs');
 
 (async function startup({
-  unix_socket,
   protocol,
   domains,
   host,
@@ -23,6 +22,8 @@ const fs = require('fs');
     });
 
     if (debug) {
+      require('redis').debug_mode = true;
+
       let server;
       const sockets = [];
 
@@ -88,21 +89,10 @@ const fs = require('fs');
       sentry.on('ready', async () => {
         const mongoose = require('mongoose');
 
-        // eslint-disable-next-line import/no-extraneous-dependencies
-        const RedisServer = require('redis-server');
-        const redisServer = await new RedisServer().open();
-
-        process.on('beforeExit', async () => redisServer.close());
-
-        const redisClient = require('redis');
-        redisClient.debug_mode = true;
-
-        const redis = redisClient.createClient()
+        // const redis = require('redis')
+        //   .createClient(urls.redis);
         // eslint-disable-next-line no-use-before-define
-          .on('connect', runServer)
-          .on('ready', () => {
-            // setInterval(() => redis.set('uptime', process.uptime()), 1000);
-          });
+        // .on('connect', runServer);
 
         function runServer() {
           if (server && server.listening) {
@@ -119,7 +109,7 @@ const fs = require('fs');
             paths,
             hrefs,
             keys,
-            redis,
+            // redis,
             render: require('./dist/render.js'),
             assets: { css, scripts, meta, hash: webpack.hash },
             debug,
@@ -164,6 +154,7 @@ const fs = require('fs');
         return runServer();
       });
     } else {
+      const os = require('os');
       const cluster = require('cluster');
       const redis = require('redis').createClient(urls.redis);
       const render = require('./dist/render');
@@ -182,7 +173,7 @@ const fs = require('fs');
       scripts.sort(src => src.startsWith('client') ? 1 : -1);
 
       if (cluster.isMaster) {
-        let count = require('os').cpus().length;
+        let count = os.cpus().length;
 
         while (count !== 0) {
           cluster
@@ -196,7 +187,6 @@ const fs = require('fs');
       } else {
         // console.log(`Worker ${process.pid} started`);
         server({
-          unix_socket,
           protocol,
           domains,
           host,

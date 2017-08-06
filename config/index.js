@@ -1,12 +1,10 @@
 const { join } = require('path');
 
 const debug = process.env.NODE_ENV !== 'production';
-// eslint-disable-next-line camelcase
-const unix_socket = process.env.UNIX_SOCKET || null;
 const port = process.env.PORT || 3000;
 const cwd = process.cwd();
 
-const redis = process.env.REDIS_URL;
+const redis = process.env.REDIS_URL;// || 'redis://127.0.0.1:6379/1';
 
 const ws = debug ? 'ws://' : 'wss://';
 const protocol = debug ? 'http://' : 'https://';
@@ -20,7 +18,6 @@ const domains = {
 };
 
 module.exports = {
-  unix_socket,
   protocol,
   domains,
   host,

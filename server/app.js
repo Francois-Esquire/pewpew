@@ -11,19 +11,21 @@ const GridStorage = require('multer-gridfs-storage');
 const ms = require('microseconds');
 
 module.exports = function App({
-  gql: { graphql, graphiql },
+  graphql,
+  graphiql,
   keys,
   routes,
   middleware,
   context,
   domains,
+  host,
   debug,
 }) {
   const app = new Koa();
   const router = new KoaRouter();
 
   app.keys = keys;
-  app.subdomainOffset = debug ? 1 : 2;
+  app.subdomainOffset = host.split('.').length;
 
   Object.assign(app.context, context);
 
