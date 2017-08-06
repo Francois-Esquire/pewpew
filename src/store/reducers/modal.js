@@ -1,3 +1,5 @@
+import ReactModal from 'react-modal';
+
 const defaults = {
   isOpen: false,
   view: null,
@@ -5,13 +7,14 @@ const defaults = {
   role: 'dialog',
   delay: 0,
   onOpen: () => null,
-  onClose: () => null,
-  style: {
+  onClose: cb => cb(),
+  styleNames: {
     className: 'ReactModal__Content',
     portalClassName: 'ReactModalPortal',
     overlayClassName: 'ReactModal__Overlay',
     bodyOpenClassName: 'ReactModal__Body--open',
   },
+  style: ReactModal.defaultStyles,
 };
 
 export default function modal(state = defaults, action) {
@@ -24,8 +27,15 @@ export default function modal(state = defaults, action) {
       delay = defaults.delay,
       onOpen = defaults.onOpen,
       onClose = defaults.onClose,
+      styleNames = {},
       style = {},
     } = action;
+
+    if (type === '@@modal/close') return {
+      ...state,
+      // view,
+      isOpen: false,
+    };
 
     return {
       ...state,
@@ -36,6 +46,10 @@ export default function modal(state = defaults, action) {
       onOpen,
       onClose,
       isOpen: type === '@@modal/open' ? !!view : type === '@@modal/close' && false,
+      styleNames: {
+        ...defaults.styleNames,
+        ...styleNames,
+      },
       style: {
         ...defaults.style,
         ...style,

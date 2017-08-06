@@ -4,17 +4,22 @@
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
+  /*width: 100vw;*/
 }
+/*.ReactModal__Content--after-open {}*/
+/*.ReactModal__Content--before-close {}*/
 .ReactModal__Overlay {
   width: 100%;
   z-index: 100;
 }
-.ReactModal__Overlay--after-open {}
+/*.ReactModal__Overlay--after-open {}*/
+/*.ReactModal__Overlay--before-close {}*/
 .ReactModalPortal {
   height: auto;
   width: auto;
-  /*overflow: scroll;*/
+  overflow: scroll;
+  color: teal;
+  background-color: #ffffff;
 }
 .ReactModal__Body--open {
   width: 100%;

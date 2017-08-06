@@ -17,10 +17,18 @@ const Root = compose(
           change: url => dispatch({ type: '@@channel/change', url }),
         },
         modal: bindActionCreators({
-          open: (view, { label, role, delay, onOpen, onClose, style }) => ({
-            type: '@@modal/open', view, label, role, delay, onOpen, onClose, style,
+          open: (view, { label, role, delay, onOpen, onClose, styleNames, style }) => ({
+            type: '@@modal/open',
+            view,
+            label,
+            role,
+            delay,
+            onOpen,
+            onClose,
+            styleNames,
+            style,
           }),
-          close: () => ({ type: '@@modal/close' }),
+          close: () => dispatch({ type: '@@modal/close' }),
         }, dispatch),
       };
     },

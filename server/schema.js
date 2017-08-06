@@ -60,12 +60,14 @@ const resolvers = {
     deleteAccount: root =>
       root.user && root.user.deleteAccount(),
 
-    publishChannel: (root, { url, title }) =>
-      root.user && Channels.publish(url, title, root.user),
+    publishChannel: (root, { url, title, description, tags }) =>
+      root.user && Channels.publish({ url, title, description, tags }, root.user),
     updateChannel: (root, { id }) =>
       root.user && Channels.update(id, root.user),
-    deleteChannel: (root, { id }) =>
-      root.user && Channels.delete(id, root.user),
+    joinChannel: (root, { id }) =>
+      root.user && Channels.join(id, root.user),
+    abandonChannel: (root, { id }) =>
+      root.user && Channels.abandon(id, root.user),
 
     async remember(root, { channel, content, kind }) {
       if (root.user) {

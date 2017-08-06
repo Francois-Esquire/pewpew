@@ -37,6 +37,7 @@ type Channel implements Node {
   tags: [String]
   members: [Contributor]
   present: Int
+  private: Boolean
   moments(
     limit: Int = 64,
     kinds: [Types]
@@ -112,11 +113,16 @@ type Mutation {
   publishChannel(
     url: String!
     title: String
+    description: String
+    tags: [String]
     ): Channel
   updateChannel(
     id: ID!
-    ): Channel
-  deleteChannel(
+    ): Boolean
+  joinChannel(
+    id: ID!
+    ): Boolean
+  abandonChannel(
     id: ID!
     ): Boolean
 

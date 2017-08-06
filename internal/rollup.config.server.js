@@ -14,7 +14,7 @@ module.exports = {
   targets: [{ dest: debug ? 'dist/server-dev.js' : 'dist/server.js', format: 'cjs' }],
   sourceMap: false,
   interop: false,
-  external: Object.keys(pkg.dependencies).concat(['http']),
+  external: Object.keys(pkg.dependencies).concat(['http', 'fs']),
   plugins: [
     replace({
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),

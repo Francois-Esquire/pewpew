@@ -4,7 +4,7 @@ module.exports = async function Server({
   unix_socket,
   host,
   port,
-  paths,
+  endpoints,
   render,
   assets,
   debug = false,
@@ -19,29 +19,32 @@ module.exports = async function Server({
 
   const context = {};
 
+  context.helpers = require('./helpers');
+  context.render = render;
+  context.assets = assets;
+  context.endpoints = endpoints;
+
   if (debug) {
     if (webpack) {
       context.webpack = webpack;
       middleware.push(webpack.middleware);
+      context.assets.hash = webpack.hash;
     }
     context.db = db;
   } else {
     context.db = await require('./db')({ debug });
   }
-  context.helpers = require('./helpers');
-  context.render = render;
-  context.assets = assets;
 
   const {
     graphql,
     graphiql,
     localInterface,
     createSubscriptionServer,
-  } = require('./graphql')({ debug, host, port, path: paths.graphql });
+  } = require('./graphql')({ debug, host, port, path: `/${endpoints.graphql}` });
 
   if (graphql) {
     routes.push({
-      path: '/graphql',
+      path: `/${endpoints.graphql}`,
       verbs: ['get', 'post'],
       use: graphql,
     });
@@ -50,7 +53,7 @@ module.exports = async function Server({
 
     if (graphiql) {
       routes.push({
-        path: '/graphiql',
+        path: `/${endpoints.graphiql}`,
         verbs: ['get'],
         use: graphiql,
       });

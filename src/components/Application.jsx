@@ -7,7 +7,7 @@ import ReactModal from 'react-modal';
 import Header from './Header';
 import Nexus from './Nexus';
 
-class Application extends React.PureComponent {
+class Application extends React.Component {
   getChildContext() {
     const { modal } = this.props;
     return {
@@ -34,7 +34,7 @@ class Application extends React.PureComponent {
       (<modal.view modal={modal} match={match} location={location} history={history} />) : null;
 
     return (<main id="view">
-      <Header openMenu={this.openMenu} />
+      <Header channel={channel.url} openMenu={this.openMenu} />
       <Switch>
         <Route
           exact
@@ -69,13 +69,14 @@ class Application extends React.PureComponent {
         role={modal.role}
         isOpen={modal.isOpen}
         onAfterOpen={modal.onOpen}
-        onRequestClose={modal.close}
+        onRequestClose={() => modal.onClose(modal.close)}
         closeTimeoutMS={modal.delay}
         shouldCloseOnOverlayClick
-        className={modal.className}
-        portalClassName={modal.portalClassName}
-        overlayClassName={modal.overlayClassName}
-        bodyOpenClassName={modal.bodyOpenClassName}
+        style={modal.style}
+        className={modal.styleNames.className}
+        portalClassName={modal.styleNames.portalClassName}
+        overlayClassName={modal.styleNames.overlayClassName}
+        bodyOpenClassName={modal.styleNames.bodyOpenClassName}
         appElement={appElement}
         ariaHideApp>
         <Modal />
@@ -90,9 +91,12 @@ class Application extends React.PureComponent {
 }
 
 Application.propTypes = {
-  // eslint-disable-next-line max-len
-  appElement: (props, propName, componentName) => Element !== undefined && props[propName] instanceof Element === false
-    && new Error(`Invalid prop '${propName}' supplied to '${componentName}'. Validation failed.`),
+  appElement(props, propName, componentName) {
+    if (!props.isServer && props[propName] instanceof Element === false) {
+      return new Error(`Invalid prop '${propName}' supplied to '${componentName}'. Validation failed.`);
+    }
+    return null;
+  },
   isServer: PropTypes.bool,
   // eslint-disable-next-line react/forbid-prop-types
   match: PropTypes.object,

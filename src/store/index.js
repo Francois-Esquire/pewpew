@@ -6,21 +6,34 @@ export default function configureStore(
   state,
   reducers = {},
   middleware = []) {
-  let composer;
+  const initialState = state || undefined;
+  const rootReducer = combineReducers({ ...reducers, ...rootReducers });
+  const enhancers = [applyMiddleware(...middleware)];
 
   if (process.env.NODE_ENV !== 'production') {
-    composer = typeof window === 'object' &&
-    // eslint-disable-next-line no-underscore-dangle
-    window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ?
+    const enhancements = (
+      typeof window === 'object' &&
       // eslint-disable-next-line no-underscore-dangle
-      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__({}) : compose;
-  } else composer = compose;
+      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ?
+      // eslint-disable-next-line no-underscore-dangle
+      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__({}) : compose
+    )(...enhancers);
 
-  const initialState = state || undefined;
+    const store = createStore(rootReducer, initialState, enhancements);
 
-  const rootReducer = combineReducers({ ...reducers, ...rootReducers });
+    if (module && module.hot) {
+      module.hot.accept('./reducers', () => {
+        const nextReducers = require('./reducers').default;
 
-  const enhancements = composer(applyMiddleware(...middleware));
+        store.replaceReducer(combineReducers({
+          ...reducers,
+          ...nextReducers,
+        }));
+      });
+    }
 
-  return createStore(rootReducer, initialState, enhancements);
+    return store;
+  }
+
+  return createStore(rootReducer, initialState, compose(...enhancers));
 }

@@ -10,10 +10,6 @@ const BrotliCompressionPlugin = require('brotli-webpack-plugin');
 const pkg = require('./package.json');
 const config = require('./config');
 
-const dllPath = join(__dirname, 'dist/dll');
-const srcPath = join(__dirname, 'src');
-const distPath = join(__dirname, 'dist');
-
 const debug = process.env.NODE_ENV !== 'production';
 
 const resolve = {
@@ -160,9 +156,9 @@ if (debug) {
     }),
     // new webpack.DllReferencePlugin({
     //   context: process.cwd(),
-    //   manifest: require(join(dllPath, 'vendor.json')),
+    //   manifest: require(join(config.paths.dll, 'vendor.json')),
     // }),
-    // new CopyWebpackPlugin([{ from: dllPath, to: `${distPath}/public/js/` }], { ignore: ['*.json'] }),
+    // new CopyWebpackPlugin([{ from: config.paths.dll, to: `${config.paths.dist}/public/js/` }], { ignore: ['*.json'] }),
     new GzipCompressionPlugin({
       asset: '[path].gz[query]',
       algorithm: 'gzip',
@@ -203,7 +199,7 @@ module.exports = {
       'subscriptions-transport-ws'],
     client: (debug ?
       ['webpack-hot-middleware/client?path=__hmr&timeout=2000&name=app', 'react-hot-loader/patch'] :
-      []).concat(join(srcPath, 'index.js')),
+      []).concat(join(config.paths.src, 'index.js')),
   },
   output: {
     filename: debug ? '[name].[hash].js' : 'js/[name].[hash].js',
@@ -211,7 +207,7 @@ module.exports = {
     sourceMapFilename: 'maps/[name].[chunkhash].js.map',
     hotUpdateChunkFilename: 'hot.[hash].js',
     hotUpdateMainFilename: 'hot-update.[hash].json',
-    path: join(distPath, 'public'),
+    path: join(config.paths.dist, 'public'),
     publicPath: `${config.protocol}${config.host}`,
   },
   module: {

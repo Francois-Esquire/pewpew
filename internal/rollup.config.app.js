@@ -14,7 +14,7 @@ module.exports = {
     { dest: 'src/appl.es', format: 'es' }],
   sourceMap: false,
   external: id => {
-    return /\.(css|png|jpg|jpeg|gif|svg|eot|ttf|woff|woff2)$/.test(id) || (externals.indexOf(id) > 0);
+    return /\.(css|png|jpg|jpeg|gif|svg|eot|ttf|woff|woff2)$/.test(id) || (externals.indexOf(id) >= 0);
   },
   plugins: [
     replace({

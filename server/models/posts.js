@@ -1,16 +1,14 @@
 const mongoose = require('mongoose');
 
-const ID = mongoose.Schema.Types.ObjectId;
-
 const PostSchema = new mongoose.Schema({
   by: {
-    type: ID,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
   },
   channel: {
-    type: ID,
-    ref: 'Thread',
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Channel',
     required: true,
   },
   content: {
@@ -19,7 +17,19 @@ const PostSchema = new mongoose.Schema({
     minlength: 1,
     trim: true,
   },
-  kind: String,
+  kind: {
+    type: String,
+    required: true,
+    enum: {
+      message: '`{VALUE}` is not a valid `{PATH}`.',
+      values: [
+        'TEXT',
+        'IMAGE',
+        'VIDEO',
+        'AUDIO',
+        'LINK'],
+    },
+  },
 }, {
   toObject: {
     getters: false,

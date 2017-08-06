@@ -10,25 +10,31 @@ import Application from './components/Root';
 
 import './styles/index.css';
 
-// eslint-disable-next-line func-names
-(function () {
+(function startup() {
   const {
-    protocol = 'http:',
-    host = 'localhost:3000',
-  } = window.location || {};
+    __$__,
+    pewpew: {
+      endpoints: {
+        graphql,
+      },
+    },
+    location: {
+      protocol,
+      host,
+    },
+  } = window;
 
   const client = configClient({
-    uri: `${protocol}//${host}/graphql`,
+    uri: `${protocol}//${host}/${graphql}`,
   });
 
-  // eslint-disable-next-line no-underscore-dangle
-  const store = configStore(window.__$__, {
+  const store = configStore(__$__, {
     apollo: client.reducer(),
   }, [client.middleware()]);
 
   const appElement = document.getElementById('app');
 
-  if (process.env.NODE_ENV !== 'production' && module.hot) {
+  if (process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line import/no-extraneous-dependencies
     const { AppContainer } = require('react-hot-loader');
 
@@ -42,18 +48,12 @@ import './styles/index.css';
       </ApolloProvider>
     </AppContainer>, appElement);
 
-    module.hot.accept('./components/Root', () => {
-      App = require('./components/Root').default;
-      renderApp(App);
-    });
-
-    module.hot.accept('./store/reducers', () => {
-      const reducers = require('./store/reducers');
-      store.replaceReducer({
-        apollo: client.reducer(),
-        ...reducers,
+    if (module && module.hot) {
+      module.hot.accept('./components/Root', () => {
+        App = require('./components/Root').default;
+        renderApp();
       });
-    });
+    }
 
     return renderApp();
   }

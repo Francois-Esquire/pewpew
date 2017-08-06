@@ -8,9 +8,10 @@ var reactRouterDom = require('react-router-dom');
 var reactApollo = require('react-apollo');
 var Helmet = _interopDefault(require('react-helmet'));
 var redux = require('redux');
+var ReactModal = _interopDefault(require('react-modal'));
 var reactRedux = require('react-redux');
 var PropTypes = _interopDefault(require('prop-types'));
-var ReactModal = _interopDefault(require('react-modal'));
+var anime = _interopDefault(require('animejs'));
 
 const defaults = {
   isOpen: false,
@@ -19,13 +20,14 @@ const defaults = {
   role: 'dialog',
   delay: 0,
   onOpen: function () { return null; },
-  onClose: function () { return null; },
-  style: {
+  onClose: function (cb) { return cb(); },
+  styleNames: {
     className: 'ReactModal__Content',
     portalClassName: 'ReactModalPortal',
     overlayClassName: 'ReactModal__Overlay',
     bodyOpenClassName: 'ReactModal__Body--open',
   },
+  style: ReactModal.defaultStyles,
 };
 function modal(state, action) {
   if ( state === void 0 ) state = defaults;
@@ -37,7 +39,10 @@ function modal(state, action) {
     var delay = action.delay; if ( delay === void 0 ) delay = defaults.delay;
     var onOpen = action.onOpen; if ( onOpen === void 0 ) onOpen = defaults.onOpen;
     var onClose = action.onClose; if ( onClose === void 0 ) onClose = defaults.onClose;
+    var styleNames = action.styleNames; if ( styleNames === void 0 ) styleNames = {};
     var style = action.style; if ( style === void 0 ) style = {};
+    if (type === '@@modal/close') { return Object.assign({}, state,
+      {isOpen: false}); }
     return Object.assign({}, state,
       {view: view,
       label: label,
@@ -46,6 +51,8 @@ function modal(state, action) {
       onOpen: onOpen,
       onClose: onClose,
       isOpen: type === '@@modal/open' ? !!view : type === '@@modal/close' && false,
+      styleNames: Object.assign({}, defaults.styleNames,
+        styleNames),
       style: Object.assign({}, defaults.style,
         style)});
   } return state;
@@ -73,23 +80,97 @@ function configureStore(
   middleware) {
   if ( reducers === void 0 ) reducers = {};
   if ( middleware === void 0 ) middleware = [];
-  let composer;
-  { composer = redux.compose; }
   const initialState = state || undefined;
   const rootReducer = redux.combineReducers(Object.assign({}, reducers, rootReducers));
-  const enhancements = composer(redux.applyMiddleware.apply(void 0, middleware));
-  return redux.createStore(rootReducer, initialState, enhancements);
+  const enhancers = [redux.applyMiddleware.apply(void 0, middleware)];
+  {
+    const enhancements = (
+      typeof window === 'object' &&
+      // eslint-disable-next-line no-underscore-dangle
+      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ?
+      // eslint-disable-next-line no-underscore-dangle
+      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__({}) : redux.compose
+    ).apply(void 0, enhancers);
+    const store = redux.createStore(rootReducer, initialState, enhancements);
+    if (module && module.hot) {
+      module.hot.accept('./reducers', function () {
+        const nextReducers = require('./reducers').default;
+        store.replaceReducer(redux.combineReducers(Object.assign({}, reducers,
+          nextReducers)));
+      });
+    }
+    return store;
+  }
+  return redux.createStore(rootReducer, initialState, redux.compose.apply(void 0, enhancers));
 }
 
 var doc = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Moi"},"variableDefinitions":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"me"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"email"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"handle"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"avatar"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"channels"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null}]}},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"moments"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null}]}}]}}]}}],"loc":{"start":0,"end":123}};
     doc.loc.source = {"body":"query Moi {\n  me {\n    id\n    email\n    handle\n    avatar\n    channels {\n      id\n    }\n    moments {\n      id\n    }\n  }\n}\n","name":"GraphQL request","locationOffset":{"line":1,"column":1}};
 
-function Nav(ref) {
+const MainMenu = function (ref) {
+  var children = ref.children;
+  var channel = ref.channel;
+  var modal = ref.modal;
+  return (
+  React.createElement( 'nav', { className: "main-menu" },
+    React.createElement( 'header', null,
+      React.createElement( 'button', { type: "button", onClick: function () { return modal.onClose(modal.close); } }, "Close")
+    ),
+    children,
+    React.createElement( reactRouterDom.NavLink, { exact: true, to: "/", className: "home", activeClassName: "jackpot" },
+      React.createElement( 'span', null, "Home" )
+    ),
+    React.createElement( 'footer', null,
+      React.createElement( 'h5', null, channel )
+    )
+  ));
+};
+MainMenu.propTypes = {
+  children: PropTypes.node,
+};
+MainMenu.defaultProps = {
+  children: null,
+};
+MainMenu.contextTypes = {
+  modal: PropTypes.object,
+};
+
+function Nav(ref, ref$1) {
   var data = ref.data;
-  return data.me ? (React.createElement( 'header', null,
-    React.createElement( 'span', null, "Moi" )
-  )) : null;
+  var channel = ref.channel;
+  var modal = ref$1.modal;
+  return (React.createElement( 'header', null,
+    React.createElement( 'button', { onClick: function () { return modal.open(function (modalProps) { return (React.createElement( MainMenu, Object.assign({}, { channel: channel }, modalProps))); }, {
+      label: 'Main Menu',
+      role: 'menu',
+      delay: 2800,
+      onOpen: function () { return anime({
+        targets: Object.keys(modal.style).map(function (key) { return modal.style[key]; }),
+        opacity: 1,
+        easing: 'easeInOutExpo',
+        duration: 800,
+        complete: function () {
+          console.log('opening completed!');
+        },
+      }); },
+      styleNames: {
+        className: 'Main_Menu_Content',
+        portalClassName: 'ReactModalPortal Main_Menu',
+        overlayClassName: 'Main_Menu_Overlay',
+      },
+    }); } }, "Menu"),
+    React.createElement( 'span', null, data.me ? 'Moi' : channel )
+  ));
 }
+Nav.propTypes = {
+  channel: PropTypes.string,
+};
+Nav.defaultProps = {
+  channel: '',
+};
+Nav.contextTypes = {
+  modal: PropTypes.object,
+};
 const Header = reactApollo.graphql(doc)(Nav);
 
 var Hub = (function (superclass) {
@@ -139,6 +220,13 @@ var Application$1 = (function (superclass) {
   if ( superclass ) Application.__proto__ = superclass;
   Application.prototype = Object.create( superclass && superclass.prototype );
   Application.prototype.constructor = Application;
+  Application.prototype.getChildContext = function () {
+    var ref = this.props;
+    var modal = ref.modal;
+    return {
+      modal: modal,
+    };
+  };
   Application.prototype.componentWillReceiveProps = function (Props) {
     var modal = Props.modal;
     var location = Props.location;
@@ -161,7 +249,7 @@ var Application$1 = (function (superclass) {
     const Modal = function () { return modal.isOpen && modal.view ?
       (React.createElement( modal.view, { modal: modal, match: match, location: location, history: history })) : null; };
     return (React.createElement( 'main', { id: "view" },
-      React.createElement( Header, null ),
+      React.createElement( Header, { channel: channel.url, openMenu: this.openMenu }),
       React.createElement( reactRouterDom.Switch, null,
         React.createElement( reactRouterDom.Route, {
           exact: true, path: "/", render: function () { return (React.createElement( 'section', { className: "home" },
@@ -190,7 +278,7 @@ var Application$1 = (function (superclass) {
         React.createElement( 'h6', null, React.createElement( 'a', { href: "https://github.com/Francois-Esquire/pewpew" }, "github") )
       ),
       React.createElement( ReactModal, {
-        contentLabel: modal.label, role: modal.role, isOpen: modal.isOpen, onAfterOpen: modal.onOpen, onRequestClose: modal.close, closeTimeoutMS: modal.delay, shouldCloseOnOverlayClick: true, className: modal.className, portalClassName: modal.portalClassName, overlayClassName: modal.overlayClassName, bodyOpenClassName: modal.bodyOpenClassName, appElement: appElement, ariaHideApp: true },
+        contentLabel: modal.label, role: modal.role, isOpen: modal.isOpen, onAfterOpen: modal.onOpen, onRequestClose: function () { return modal.onClose(modal.close); }, closeTimeoutMS: modal.delay, shouldCloseOnOverlayClick: true, style: modal.style, className: modal.styleNames.className, portalClassName: modal.styleNames.portalClassName, overlayClassName: modal.styleNames.overlayClassName, bodyOpenClassName: modal.styleNames.bodyOpenClassName, appElement: appElement, ariaHideApp: true },
         React.createElement( Modal, null )
       ),
       React.createElement( Helmet, {
@@ -200,11 +288,14 @@ var Application$1 = (function (superclass) {
     ));
   };
   return Application;
-}(React.PureComponent));
+}(React.Component));
 Application$1.propTypes = {
-  // eslint-disable-next-line max-len
-  appElement: function (props, propName, componentName) { return Element !== undefined && props[propName] instanceof Element === false
-    && new Error(`Invalid prop '${propName}' supplied to '${componentName}'. Validation failed.`); },
+  appElement: function(props, propName, componentName) {
+    if (!props.isServer && props[propName] instanceof Element === false) {
+      return new Error(`Invalid prop '${propName}' supplied to '${componentName}'. Validation failed.`);
+    }
+    return null;
+  },
   isServer: PropTypes.bool,
   // eslint-disable-next-line react/forbid-prop-types
   match: PropTypes.object,
@@ -226,6 +317,9 @@ Application$1.defaultProps = {
   modal: {},
   channel: {},
 };
+Application$1.childContextTypes = {
+  modal: PropTypes.object,
+};
 
 const Root = reactApollo.compose(
   reactRouterDom.withRouter,
@@ -245,12 +339,21 @@ const Root = reactApollo.compose(
             var delay = ref.delay;
             var onOpen = ref.onOpen;
             var onClose = ref.onClose;
+            var styleNames = ref.styleNames;
             var style = ref.style;
             return ({
-            type: '@@modal/open', view: view, label: label, role: role, delay: delay, onOpen: onOpen, onClose: onClose, style: style,
+            type: '@@modal/open',
+            view: view,
+            label: label,
+            role: role,
+            delay: delay,
+            onOpen: onOpen,
+            onClose: onClose,
+            styleNames: styleNames,
+            style: style,
           });
       },
-          close: function () { return ({ type: '@@modal/close' }); },
+          close: function () { return dispatch({ type: '@@modal/close' }); },
         }, dispatch),
       };
     },
@@ -310,10 +413,9 @@ Html.propTypes = {
 };
 
 function render(ctx, ref) {
+  var meta = ref.meta; if ( meta === void 0 ) meta = [];
   var css = ref.css; if ( css === void 0 ) css = [];
   var scripts = ref.scripts; if ( scripts === void 0 ) scripts = [];
-  var manifest = ref.manifest; if ( manifest === void 0 ) manifest = [];
-  var meta = ref.meta; if ( meta === void 0 ) meta = [];
   var networkInterface = ref.networkInterface;
   if (ctx.state === undefined) { ctx.state = {}; }
   const client = new reactApollo.ApolloClient({
@@ -344,7 +446,11 @@ function render(ctx, ref) {
       const markup = ReactDOMServer.renderToStaticMarkup(
         React.createElement( Html, {
           html: html, head: head, meta: meta, css: css, scripts: scripts, window: {
-            webpackManifest: manifest.join(''),
+            pewpew: {
+              endpoints: {
+                graphql: ctx.endpoints.graphql,
+              },
+            },
             __$__: store.getState(),
           } }));
       ctx.type = 'text/html';

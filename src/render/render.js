@@ -9,10 +9,9 @@ import Application from '../components/Root';
 import Html from './Html';
 
 export default function render(ctx, {
+  meta = [],
   css = [],
   scripts = [],
-  manifest = [],
-  meta = [],
   networkInterface,
 }) {
   if (ctx.state === undefined) ctx.state = {};
@@ -55,7 +54,11 @@ export default function render(ctx, {
           css={css}
           scripts={scripts}
           window={{
-            webpackManifest: manifest.join(''),
+            pewpew: {
+              endpoints: {
+                graphql: ctx.endpoints.graphql,
+              },
+            },
             __$__: store.getState(),
           }} />);
 

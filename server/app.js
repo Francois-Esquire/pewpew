@@ -102,6 +102,10 @@ module.exports = function App({
       const total = end.microseconds + (end.milliseconds * 1e3) + (end.seconds * 1e6);
       ctx.set('Response-Time', `${total / 1e3}ms`);
     })
+    // .use(async (ctx, next) => {
+    //   ctx.set({ Allow: 'GET, POST' });
+    //   await next();
+    // })
     .use(KoaFavicon(`${process.cwd()}/dist/public/icons/favicon.ico`))
     .use(KoaSession({
       key: 'persona',
@@ -120,6 +124,8 @@ module.exports = function App({
     .use(async (ctx, next) => {
       try {
         if (ctx.path !== '/') {
+          if (/\.(svg|css|js)$/.test(ctx.path)) ctx.set({ Etag: ctx.assets.hash });
+
           const root = `${process.cwd()}${
             /^\/(images)\//.test(ctx.path) ? '/assets' : '/dist/public'
           }`;

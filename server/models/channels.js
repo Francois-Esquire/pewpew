@@ -1,23 +1,87 @@
 const mongoose = require('mongoose');
 
-const AuthorSchema = new mongoose.Schema({
-  handle: String,
-  avatar: String,
-}, { _id: false });
-
 const ChannelSchema = new mongoose.Schema({
-  by: String,
+  by: mongoose.Schema.Types.ObjectId,
   url: String,
   title: String,
   description: String,
-  members: [AuthorSchema],
+  tags: [String],
+  members: [mongoose.Schema.Types.ObjectId],
+  maintainers: [mongoose.Schema.Types.ObjectId],
+  private: {
+    type: Boolean,
+    default: false,
+  },
+});
+
+ChannelSchema.pre('save', function save(next) {
+  const channel = this;
+  if (channel.isNew) {
+    if (!channel.members) channel.members = [];
+    if (!channel.maintainers) channel.maintainers = [];
+    channel.maintainers.push(channel.by);
+  }
+  return next();
 });
 
 ChannelSchema.statics = {
-  search(limit) {},
-  publish(url, title, user) {},
-  update(id, user) {},
-  delete(id, user) {},
+  search(count, tags = []) {
+    return this.limit(count).find({
+      $and: [
+        { private: false },
+        { $in: { tags } }],
+    });
+  },
+  async publish({ url, title, description, tags }, user) {
+    const Channel = this;
+    const channel = await new Channel({
+      by: user.id,
+      url,
+      title,
+      description,
+      tags,
+    }).save();
+    return channel;
+  },
+  async update(id, user) {
+    const channel = await this.findOne(id);
+    if (channel) {
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (maintainer >= 0) {
+        // perform update
+        await channel.save();
+        return true;
+      }
+    }
+    return false;
+  },
+  async join(id, user) {
+    const channel = await this.findOne(id);
+    if (channel && !channel.private) {
+      const member = channel.members.indexOf(user.id);
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (member < 0 || maintainer < 0) {
+        channel.members.push(user.id);
+        await channel.save();
+        return true;
+      }
+    }
+    return false;
+  },
+  async abandon(id, user) {
+    const channel = await this.findOne(id);
+    if (channel) {
+      const maintainer = channel.maintainers.indexOf(user.id);
+      if (maintainer >= 0) {
+        if (channel.members.length) {
+          channel.maintainers.splice(maintainer, 1);
+          await channel.save();
+        } else await channel.remove();
+        return true;
+      }
+    }
+    return false;
+  },
 };
 
 ChannelSchema.methods = {};
