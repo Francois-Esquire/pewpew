@@ -173,7 +173,7 @@ const fs = require('fs');
       scripts.sort(src => src.startsWith('client') ? 1 : -1);
 
       if (cluster.isMaster) {
-        let count = os.cpus().length;
+        let count = Math.floor(os.cpus().length / 2);
 
         while (count !== 0) {
           cluster
