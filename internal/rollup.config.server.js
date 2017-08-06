@@ -16,9 +16,9 @@ module.exports = {
   interop: false,
   external: Object.keys(pkg.dependencies).concat(['http', 'fs']),
   plugins: [
-    replace({
-      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
-    }),
+    // replace({
+    //   'debug': JSON.stringify(debug),
+    // }),
     cjs({
       ignoreGlobal: true,
       exclude: 'node_modules/**',
@@ -58,7 +58,16 @@ module.exports = {
         'transform-es2015-unicode-regex',
         'transform-object-rest-spread',
         'transform-class-properties',
-        'transform-do-expressions'],
+        'transform-do-expressions',
+        ['minify-replace', {
+          replacements: [{
+            identifierName: "debug",
+            replacement: {
+              type: "booleanLiteral",
+              value: debug
+            }
+          }]
+        }]],
     }),
     cleanup({
       maxEmptyLines: 0,

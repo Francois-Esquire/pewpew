@@ -20,10 +20,7 @@ module.exports = async function Server({
   webpack,
   db,
 }) {
-  const helpers = require('./helpers');
-
   const context = {
-    helpers,
     domains,
     redis,
   };
@@ -31,11 +28,6 @@ module.exports = async function Server({
   const routes = [];
 
   const middleware = [];
-
-  // setInterval(() => redis.set('uptime', process.uptime()), 1000);
-  // setInterval(() => redis.get('uptime', (error, uptime) => {
-  //   // console.log('uptime', uptime);
-  // }), 2000);
 
   if (debug) {
     if (webpack) middleware.push(webpack.middleware);
@@ -48,6 +40,8 @@ module.exports = async function Server({
     ctx.set({ Allow: 'GET, POST' });
     await next();
   });
+
+  const helpers = require('./helpers');
 
   const getRootValue = async ctx => Object.assign({
     tasks: ['hey', 'there'],
@@ -105,9 +99,14 @@ module.exports = async function Server({
       subscribe,
       // onOperation: message => console.log('message: ', message),
       // onOperationComplete: (ws, opId) => console.log('ws: ', Object.keys(ws), 'opId', opId),
-      onConnect: params => console.log('params:', params),
+      // onConnect: params => console.log('params:', params),
     }, { server });
   });
+
+  // setInterval(() => redis.set('uptime', process.uptime()), 1000);
+  // setInterval(() => redis.get('uptime', (error, uptime) => {
+  //   // console.log('uptime', uptime);
+  // }), 2000);
 
   return { server, app };
 };

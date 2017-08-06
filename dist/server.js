@@ -8,8 +8,8 @@ var graphqlServerKoa = require('graphql-server-koa');
 var mongoose = require('mongoose');
 var graphqlTools = require('graphql-tools');
 var graphqlSubscriptions = require('graphql-subscriptions');
-var jsonwebtoken = require('jsonwebtoken');
 var gridfsStream = require('gridfs-stream');
+var jsonwebtoken = require('jsonwebtoken');
 var validator = require('validator');
 var bcryptNodejs = require('bcrypt-nodejs');
 var koa = require('koa');
@@ -284,19 +284,6 @@ var schema = makeExecutableSchema({
   allowUndefinedInResolve: !0
 });
 
-var helpers = {
-  async getUser(token, secret) {
-    if (!token || !secret) return { user: null, token: null };
-    try {
-      const decodedToken = jsonwebtoken.verify(token.replace(/^JWT\s{1,}/, ''), secret);
-      const user = await mongoose.model('User').findOne({ _id: decodedToken.sub });
-      return { user, token };
-    } catch (err) {
-      return { user: null, token };
-    }
-  }
-};
-
 const PostSchema = new mongoose.Schema({
   by: {
     type: mongoose.Schema.Types.ObjectId,
@@ -503,6 +490,19 @@ var db = async ({ debug, uri, options }) => {
   };
 };
 
+var helpers = {
+  async getUser(token, secret) {
+    if (!token || !secret) return { user: null, token: null };
+    try {
+      const decodedToken = jsonwebtoken.verify(token.replace(/^JWT\s{1,}/, ''), secret);
+      const user = await mongoose.model('User').findOne({ _id: decodedToken.sub });
+      return { user, token };
+    } catch (err) {
+      return { user: null, token };
+    }
+  }
+};
+
 var app = function ({
   graphql: graphql$$1,
   graphiql,
@@ -512,7 +512,7 @@ var app = function ({
   context,
   domains,
   host,
-  debug
+  debug = !1
 }) {
   const app = new koa();
   const router = new koaRouter();
@@ -596,9 +596,7 @@ var index = async function ({
   webpack,
   db: db$$1
 }) {
-  const helpers$$1 = helpers;
   const context = {
-    helpers: helpers$$1,
     domains,
     redis
   };
@@ -609,7 +607,7 @@ var index = async function ({
   });
   const getRootValue = async ctx => Object.assign({
     tasks: ['hey', 'there']
-  }, ctx ? await helpers$$1.getUser(ctx.state.token) : {});
+  }, ctx ? await helpers.getUser(ctx.state.token) : {});
   routes.push({
     path: '/*',
     verbs: ['get'],
@@ -648,8 +646,7 @@ var index = async function ({
       keepAlive: 1000,
       schema,
       execute,
-      subscribe,
-      onConnect: params => console.log('params:', params)
+      subscribe
     }, { server });
   }), { server, app: app$$1 };
 };

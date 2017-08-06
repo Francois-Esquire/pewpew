@@ -19,7 +19,7 @@ module.exports = function App({
   context,
   domains,
   host,
-  debug,
+  debug = false,
 }) {
   const app = new Koa();
   const router = new KoaRouter();
