@@ -2,33 +2,36 @@ const http = require('http');
 
 module.exports = async function Server({
   unix_socket,
+  protocol,
+  domains,
   host,
   port,
-  endpoints,
+  paths,
+  hrefs,
+  keys,
+  redis,
   render,
   assets,
   debug = false,
   webpack,
   db,
 }) {
-  const keys = ['ssssseeeecret', 'ssshhhhhhhhh'];
-
   const routes = [];
 
   const middleware = [];
 
   const context = {
     helpers: require('./helpers'),
-    render,
-    assets,
-    endpoints,
+    domains,
+    redis,
   };
+  // console.log('cpus: ', require('os').cpus().length);
+  // setInterval(() => redis.get('uptime', (error, uptime) => console.log('uptime', uptime)), 2000);
 
   if (debug) {
     if (webpack) {
       context.webpack = webpack;
       middleware.push(webpack.middleware);
-      context.assets.hash = webpack.hash;
     }
     context.db = db;
   } else {
@@ -40,45 +43,50 @@ module.exports = async function Server({
     graphiql,
     localInterface,
     createSubscriptionServer,
-  } = require('./graphql')({ debug, host, port, path: `/${endpoints.graphql}` });
+  } = require('./graphql')({ debug, protocol, domain: domains.graphql, host, port, hrefs });
 
-  if (graphql) {
-    routes.push({
-      path: `/${endpoints.graphql}`,
-      verbs: ['get', 'post'],
-      use: graphql,
-    });
+  routes.push({
+    path: '/*',
+    verbs: ['get'],
+    use: async (ctx, next) => {
+      if (!/text\/html/.test(ctx.headers.accept)) return next();
 
-    if (localInterface) context.localInterface = localInterface;
+      await render(ctx, Object.assign({}, assets, {
+        hrefs,
+        networkInterface: await localInterface(ctx),
+      }));
 
-    if (graphiql) {
-      routes.push({
-        path: `/${endpoints.graphiql}`,
-        verbs: ['get'],
-        use: graphiql,
-      });
-    }
-  }
+      return next();
+    },
+  });
+
+  middleware.push(async (ctx, next) => {
+    ctx.set({ Allow: 'GET, POST' });
+    await next();
+  });
 
   const app = require('./app')({
+    gql: { graphql, graphiql },
     keys,
+    paths,
     routes,
     middleware,
     context,
+    domains,
     debug,
   });
-
   const server = http.createServer(app.callback());
 
   // eslint-disable-next-line camelcase
   server.listen(unix_socket || port, () => {
     // eslint-disable-next-line camelcase
     if (unix_socket) {
-      // eslint-disable-next-line camelcase
+      // eslint-disable-next-line
       console.log(`app is listening on unix socket: ${unix_socket}`);
       require('fs').openSync('/tmp/app-initialized', 'w');
+      // eslint-disable-next-line no-console
     } else console.log(`listening on port: ${port}`);
-    createSubscriptionServer({ server });
+    createSubscriptionServer(server);
   });
 
   return { server, app };

@@ -1,4 +1,5 @@
 const Koa = require('koa');
+const KoaSubdomain = require('koa-subdomain');
 const KoaRouter = require('koa-router');
 const KoaHelmet = require('koa-helmet');
 const KoaSession = require('koa-session');
@@ -10,47 +11,38 @@ const GridStorage = require('multer-gridfs-storage');
 const ms = require('microseconds');
 
 module.exports = function App({
+  gql: { graphql, graphiql },
   keys,
   routes,
   middleware,
   context,
+  domains,
   debug,
 }) {
   const app = new Koa();
   const router = new KoaRouter();
 
   app.keys = keys;
+  app.subdomainOffset = 1;
 
   Object.assign(app.context, context);
 
-  if (routes) {
-    routes.forEach(route =>
-      route.verbs.forEach(verb => router[verb](route.path, route.use)));
-  }
+  const api = new KoaSubdomain().use(
+    domains.graphql,
+    new KoaRouter()
+      .get(`/${domains.graphiql}`, graphiql)
+      .post('*', graphql)
+      .routes());
 
-  const upload = KoaMulter({
-    storage: new GridStorage({
-      gfs: context.db.gfs,
-      metadata: (req, file, cb) => {
-        cb(null, file);
-      },
-      root: (req, file, cb) => cb(null, null),
-    }),
-    fileFilter(req, file, cb) { cb(null, true); },
-    limits: {
-      files: 1,
-    },
-    preservePath: true,
-  });
-
-  router
-    .get(/^\/content\/(.*)\.(.*)/, async (ctx) => {
-      const fileId = ctx.params[0];
+  const content = new KoaSubdomain().use(
+    domains.content,
+    new KoaRouter().get(/^(.*)\.(.*){3,4}$/, async (ctx) => {
+      const id = ctx.params[0];
       const ext = ctx.params[1];
-      const file = await ctx.db.gfs.findOne({ _id: fileId, filename: `${fileId}.${ext}` });
+      const file = await ctx.db.gfs.findOne({ id, filename: `${id}.${ext}` });
 
       if (!file) {
-        ctx.res.statusCode = 204;
+        ctx.status = 204;
         ctx.body = 'file could not be found.';
       }
 
@@ -64,25 +56,31 @@ module.exports = function App({
         console.log('Got error while processing stream ', err.message);
         ctx.res.end();
       });
-    })
-    .post('/uploads', upload.single('file'), async (ctx) => {
+    }).routes());
+
+  const uploads = new KoaSubdomain().use(
+    domains.upload,
+    new KoaRouter().post('/*', KoaMulter({
+      storage: new GridStorage({
+        gfs: context.db.gfs,
+        metadata: (req, file, cb) => {
+          cb(null, file);
+        },
+        root: (req, file, cb) => cb(null, null),
+      }),
+      fileFilter(req, file, cb) { cb(null, true); },
+      limits: {
+        files: 1,
+      },
+      preservePath: true,
+    }).single('file'), async (ctx) => {
       ctx.res.statusCode = 200;
-    })
-    .get('/*', async (ctx, next) => {
-      if (!/text\/html/.test(ctx.headers.accept)) return next();
-      const networkInterface = await ctx.localInterface(ctx);
-      const { css, scripts, manifest, meta } = ctx.assets;
+    }).routes());
 
-      await ctx.render(ctx, {
-        css,
-        scripts,
-        manifest,
-        meta,
-        networkInterface,
-      });
-
-      return next();
-    });
+  if (routes) {
+    routes.forEach(route =>
+      route.verbs.forEach(verb => router[verb](route.path, route.use)));
+  }
 
   if (middleware) middleware.forEach(ware => app.use(ware));
 
@@ -92,6 +90,7 @@ module.exports = function App({
       try {
         await next();
       } catch (e) {
+        ctx.status = 500;
         ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
       }
     })
@@ -102,11 +101,21 @@ module.exports = function App({
       const total = end.microseconds + (end.milliseconds * 1e3) + (end.seconds * 1e6);
       ctx.set('Response-Time', `${total / 1e3}ms`);
     })
-    // .use(async (ctx, next) => {
-    //   ctx.set({ Allow: 'GET, POST' });
-    //   await next();
-    // })
     .use(KoaFavicon(`${process.cwd()}/dist/public/icons/favicon.ico`))
+    .use(async (ctx, next) => {
+      try {
+        if (ctx.path !== '/') {
+          // if (/\.(svg|css|js)$/.test(ctx.path)) ctx.set({ Etag: ctx.assets.hash });
+
+          const root = `${process.cwd()}${
+            /^\/(images)\//.test(ctx.path) ? '/assets' : '/dist/public'
+          }`;
+          const immutable = !debug;
+          await KoaSend(ctx, ctx.path, { root, immutable });
+        }
+      } catch (e) { /* Errors will fall through */ }
+      await next();
+    })
     .use(KoaSession({
       key: 'persona',
       maxAge: 86400000,
@@ -121,21 +130,10 @@ module.exports = function App({
         ctx.headers.authorization;
       return next();
     })
-    .use(async (ctx, next) => {
-      try {
-        if (ctx.path !== '/') {
-          if (/\.(svg|css|js)$/.test(ctx.path)) ctx.set({ Etag: ctx.assets.hash });
-
-          const root = `${process.cwd()}${
-            /^\/(images)\//.test(ctx.path) ? '/assets' : '/dist/public'
-          }`;
-          const immutable = !debug;
-          await KoaSend(ctx, ctx.path, { root, immutable });
-        }
-      } catch (e) { /* Errors will fall through */ }
-      await next();
-    })
     .use(KoaBody())
+    .use(api.routes())
+    .use(content.routes())
+    .use(uploads.routes())
     .use(router.routes())
     .use(router.allowedMethods());
 

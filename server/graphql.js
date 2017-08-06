@@ -7,7 +7,7 @@ module.exports = function graphqlConfig({
   debug,
   host,
   port,
-  path,
+  hrefs,
 }) {
   const schema = require('./schema.js');
 
@@ -25,11 +25,11 @@ module.exports = function graphqlConfig({
       debug,
     })),
     graphiql: graphiqlKoa({
-      endpointURL: path,
-      subscriptionsEndpoint: `ws://${host}${path}`,
+      endpointURL: hrefs.graphql,
+      subscriptionsEndpoint: hrefs.graphqlSub,
     }),
-    createSubscriptionServer(options = {}) {
-      const { server, keepAlive = 1000 } = options;
+    createSubscriptionServer(server, options = {}) {
+      const { keepAlive = 1000 } = options;
 
       return SubscriptionServer.create({
         schema,
@@ -38,11 +38,10 @@ module.exports = function graphqlConfig({
         keepAlive,
       }, (server ? {
           server,
-          path,
+          // path: hrefs.graphql,
         } : {
           host,
           port,
-          path,
         }));
     },
   };

@@ -3,10 +3,13 @@ const fs = require('fs');
 (async function startup({
   unix_socket,
   protocol,
+  domains,
   host,
   port,
   paths,
-  endpoints,
+  hrefs,
+  keys,
+  urls,
   debug,
 }) {
   const css = [];
@@ -14,9 +17,10 @@ const fs = require('fs');
   const meta = [];
 
   try {
-    if (fs.exists(`${__dirname}/dist/public/stats/icons.json`)) {
-      meta.push(require('./dist/public/stats/icons.json').html.join(''));
-    }
+    fs.stat(`${__dirname}/dist/public/stats/icons.json`, (error) => {
+      if (error) throw error;
+      else meta.push(require('./dist/public/stats/icons.json').html.join(''));
+    });
 
     if (debug) {
       let server;
@@ -81,8 +85,24 @@ const fs = require('fs');
       const sentry = require('chokidar')
         .watch(['./dist/*.js', './server/models/*.js']);
 
-      sentry.on('ready', () => {
+      sentry.on('ready', async () => {
         const mongoose = require('mongoose');
+
+        // eslint-disable-next-line import/no-extraneous-dependencies
+        const RedisServer = require('redis-server');
+        const redisServer = await new RedisServer().open();
+
+        process.on('beforeExit', async () => redisServer.close());
+
+        const redisClient = require('redis');
+        redisClient.debug_mode = true;
+
+        const redis = redisClient.createClient()
+        // eslint-disable-next-line no-use-before-define
+          .on('connect', runServer)
+          .on('ready', () => {
+            // setInterval(() => redis.set('uptime', process.uptime()), 1000);
+          });
 
         function runServer() {
           if (server && server.listening) {
@@ -93,12 +113,15 @@ const fs = require('fs');
 
           process.nextTick(() => require('./dist/server-dev')({
             protocol,
+            domains,
             host,
             port,
             paths,
-            endpoints,
+            hrefs,
+            keys,
+            redis,
             render: require('./dist/render.js'),
-            assets: { css, scripts, meta },
+            assets: { css, scripts, meta, hash: webpack.hash },
             debug,
             webpack,
             db,
@@ -127,8 +150,7 @@ const fs = require('fs');
                 delete mongoose.connection.collections[name];
                 delete mongoose.modelSchemas[modelName];
 
-                // eslint-disable-next-line import/no-dynamic-require
-                process.nextTick(() => require(`./server/models/${name}.js`));
+                process.nextTick(require, `./server/models/${name}.js`);
               }
 
               delete require.cache[`${__dirname}/dist/server-dev.js`];
@@ -142,6 +164,8 @@ const fs = require('fs');
         return runServer();
       });
     } else {
+      const cluster = require('cluster');
+      const redis = require('redis').createClient(urls.redis);
       const render = require('./dist/render');
       const server = require('./dist/server');
       const { assetsByChunkName, hash } = require('./dist/stats/bundle.json');
@@ -157,22 +181,52 @@ const fs = require('fs');
       // eslint-disable-next-line no-confusing-arrow
       scripts.sort(src => src.startsWith('client') ? 1 : -1);
 
-      server({
-        unix_socket,
-        protocol,
-        host,
-        port,
-        paths,
-        endpoints,
-        render,
-        assets: { css, scripts, meta, hash },
-      });
+      if (cluster.isMaster) {
+        let count = require('os').cpus().length;
+
+        while (count !== 0) {
+          cluster
+            .fork()
+            .on('exit', (worker, code) => {
+              console.log(`worker ${worker.process.pid} died, code: ${code}.`);
+            });
+          count -= 1;
+        }
+        // console.log(`Master ${process.pid} is running`);
+      } else {
+        // console.log(`Worker ${process.pid} started`);
+
+        server({
+          unix_socket,
+          protocol,
+          domains,
+          host,
+          port,
+          paths,
+          hrefs,
+          keys,
+          redis,
+          render,
+          assets: { css, scripts, meta, hash },
+        });
+      }
     }
   } catch (error) {
-    // check for mongo is running locally as well.
-    if (error.code === 'MODULE_NOT_FOUND') {
-      // eslint-disable-next-line no-console
-      console.warn('\n/***/\nPlease make sure to fire "npm install && npm run build" to kickstart the project.\n/***/\n');
-    } else throw error;
+    switch (error.code) {
+      default: throw error;
+      case 'MODULE_NOT_FOUND':
+      case 'ENOENT': {
+        // eslint-disable-next-line no-console
+        console.warn('\n/***/\nPlease make sure to fire "npm install && npm run build" to kickstart the project.\n/***/\n');
+        break;
+      }
+      // also check for mongo is running locally or able to connect.
+      // check for redis as well.
+    }
   }
+
+  process.on('unhandledRejection', (reason, promise) => {
+    // eslint-disable-next-line no-console
+    console.log('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
 }(require('./config')));

@@ -30,7 +30,7 @@ main#view > section {
       font-weight: normal;
       /*text-indent: 1em;*/
     }
-    & img {
+    & svg {
       width: 50%;
       margin: 0 auto;
     }

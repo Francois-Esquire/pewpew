@@ -9,6 +9,7 @@ import Application from '../components/Root';
 import Html from './Html';
 
 export default function render(ctx, {
+  hrefs,
   meta = [],
   css = [],
   scripts = [],
@@ -44,24 +45,23 @@ export default function render(ctx, {
         }
       }
 
-      const markup = ReactDOMServer.renderToStaticMarkup(
-        <Html
-          html={html}
-          head={head}
-          meta={meta}
-          css={css}
-          scripts={scripts}
-          window={{
-            pewpew: {
-              endpoints: {
-                graphql: ctx.endpoints.graphql,
-              },
-            },
-            __$__: store.getState(),
-          }} />);
+      const window = {
+        pewpew: { hrefs },
+        __$$__: store.getState(),
+      };
 
       ctx.type = 'text/html';
-      ctx.body = `<!DOCTYPE html>\n${markup}`;
+      ctx.body = `<!DOCTYPE html>\n${
+        ReactDOMServer.renderToStaticMarkup(
+          <Html
+            html={html}
+            meta={meta}
+            head={head}
+            css={css}
+            scripts={scripts}
+            window={window} />)
+          .replace(/(<\/head>)<body>/g, `${meta.join('')}</head>`)
+      }`;
 
       return resolve();
     }).catch(reject);

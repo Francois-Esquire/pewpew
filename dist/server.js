@@ -13,6 +13,7 @@ var apolloLocalQuery = require('apollo-local-query');
 var graphqlTools = require('graphql-tools');
 var graphqlSubscriptions = require('graphql-subscriptions');
 var koa = require('koa');
+var koaSubdomain = require('koa-subdomain');
 var koaRouter = require('koa-router');
 var koaHelmet = require('koa-helmet');
 var koaSession = require('koa-session');
@@ -509,7 +510,7 @@ var graphql$1 = function ({
   debug,
   host,
   port,
-  path
+  hrefs
 }) {
   const schema$$1 = schema;
   const getRootValue = async ctx => Object.assign({
@@ -524,39 +525,50 @@ var graphql$1 = function ({
       debug
     })),
     graphiql: graphiqlKoa({
-      endpointURL: path,
-      subscriptionsEndpoint: `ws://${host}${path}`
+      endpointURL: hrefs.graphql,
+      subscriptionsEndpoint: hrefs.graphqlSub
     }),
-    createSubscriptionServer(options = {}) {
-      const { server, keepAlive = 1000 } = options;
+    createSubscriptionServer(server, options = {}) {
+      const { keepAlive = 1000 } = options;
       return SubscriptionServer.create({
         schema: schema$$1,
         execute,
         subscribe,
         keepAlive
       }, server ? {
-        server,
-        path
+        server
       } : {
         host,
-        port,
-        path
+        port
       });
     }
   };
 };
 
 var app = function ({
+  gql: { graphql: graphql$$1, graphiql },
   keys,
   routes,
   middleware,
   context,
+  domains,
   debug
 }) {
   const app = new koa();
   const router = new koaRouter();
-  app.keys = keys, Object.assign(app.context, context), routes && routes.forEach(route => route.verbs.forEach(verb => router[verb](route.path, route.use)));
-  const upload = koaMulter({
+  app.keys = keys, app.subdomainOffset = 1, Object.assign(app.context, context);
+  const api = new koaSubdomain().use(domains.graphql, new koaRouter().get(`/${domains.graphiql}`, graphiql).post('*', graphql$$1).routes());
+  const content = new koaSubdomain().use(domains.content, new koaRouter().get(/^(.*)\.(.*){3,4}$/, async ctx => {
+    const id = ctx.params[0];
+    const ext = ctx.params[1];
+    const file = await ctx.db.gfs.findOne({ id, filename: `${id}.${ext}` });
+    !file && (ctx.status = 204, ctx.body = 'file could not be found.');
+    const { _id, contentType, filename } = file;
+    ctx.set('Content-Type', contentType), ctx.set('Content-Disposition', `attachment; filename="${filename}"`), ctx.body = ctx.db.gfs.createReadStream({ _id }), ctx.body.on('error', err => {
+      console.log('Got error while processing stream ', err.message), ctx.res.end();
+    });
+  }).routes());
+  const uploads = new koaSubdomain().use(domains.upload, new koaRouter().post('/*', koaMulter({
     storage: new multerGridfsStorage({
       gfs: context.db.gfs,
       metadata: (req, file, cb) => {
@@ -571,34 +583,14 @@ var app = function ({
       files: 1
     },
     preservePath: !0
-  });
-  return router.get(/^\/content\/(.*)\.(.*)/, async ctx => {
-    const fileId = ctx.params[0];
-    const ext = ctx.params[1];
-    const file = await ctx.db.gfs.findOne({ _id: fileId, filename: `${fileId}.${ext}` });
-    !file && (ctx.res.statusCode = 204, ctx.body = 'file could not be found.');
-    const { _id, contentType, filename } = file;
-    ctx.set('Content-Type', contentType), ctx.set('Content-Disposition', `attachment; filename="${filename}"`), ctx.body = ctx.db.gfs.createReadStream({ _id }), ctx.body.on('error', err => {
-      console.log('Got error while processing stream ', err.message), ctx.res.end();
-    });
-  }).post('/uploads', upload.single('file'), async ctx => {
+  }).single('file'), async ctx => {
     ctx.res.statusCode = 200;
-  }).get('/*', async (ctx, next) => {
-    if (!/text\/html/.test(ctx.headers.accept)) return next();
-    const networkInterface = await ctx.localInterface(ctx);
-    const { css, scripts, manifest, meta } = ctx.assets;
-    return await ctx.render(ctx, {
-      css,
-      scripts,
-      manifest,
-      meta,
-      networkInterface
-    }), next();
-  }), middleware && middleware.forEach(ware => app.use(ware)), app.use(koaHelmet()).use(async (ctx, next) => {
+  }).routes());
+  return routes && routes.forEach(route => route.verbs.forEach(verb => router[verb](route.path, route.use))), middleware && middleware.forEach(ware => app.use(ware)), app.use(koaHelmet()).use(async (ctx, next) => {
     try {
       await next();
     } catch (e) {
-      ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
+      ctx.status = 500, ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
     }
   }).use(async (ctx, next) => {
     const start = microseconds.now();
@@ -606,8 +598,15 @@ var app = function ({
     const end = microseconds.parse(microseconds.since(start));
     const total = end.microseconds + end.milliseconds * 1e3 + end.seconds * 1e6;
     ctx.set('Response-Time', `${total / 1e3}ms`);
-  }
-  ).use(koaFavicon(`${process.cwd()}/dist/public/icons/favicon.ico`)).use(koaSession({
+  }).use(koaFavicon(`${process.cwd()}/dist/public/icons/favicon.ico`)).use(async (ctx, next) => {
+    try {
+      if (ctx.path !== '/') {
+        const root = `${process.cwd()}${/^\/(images)\//.test(ctx.path) ? '/assets' : '/dist/public'}`;
+        await koaSend(ctx, ctx.path, { root, immutable: !debug });
+      }
+    } catch (e) {                              }
+    await next();
+  }).use(koaSession({
     key: 'persona',
     maxAge: 86400000,
     overwrite: !0,
@@ -616,23 +615,19 @@ var app = function ({
     rolling: !1
   }, app), async (ctx, next) => {
     return ctx.session.parcel = 'parcel', ctx.state.token = ctx.cookies.get('token') || ctx.headers.authorization, next();
-  }).use(async (ctx, next) => {
-    try {
-      if (ctx.path !== '/') {
-        /\.(svg|css|js)$/.test(ctx.path) && ctx.set({ Etag: ctx.assets.hash });
-        const root = `${process.cwd()}${/^\/(images)\//.test(ctx.path) ? '/assets' : '/dist/public'}`;
-        await koaSend(ctx, ctx.path, { root, immutable: !debug });
-      }
-    } catch (e) {                              }
-    await next();
-  }).use(koaBodyparser()).use(router.routes()).use(router.allowedMethods()), app;
+  }).use(koaBodyparser()).use(api.routes()).use(content.routes()).use(uploads.routes()).use(router.routes()).use(router.allowedMethods()), app;
 };
 
 var index = async function ({
   unix_socket,
+  protocol,
+  domains,
   host,
   port,
-  endpoints,
+  paths,
+  hrefs,
+  keys,
+  redis,
   render,
   assets,
   debug = !1,
@@ -643,37 +638,43 @@ var index = async function ({
   const middleware = [];
   const context = {
     helpers: helpers,
-    render,
-    assets,
-    endpoints
+    domains,
+    redis
   };
-  debug ? (webpack && (context.webpack = webpack, middleware.push(webpack.middleware), context.assets.hash = webpack.hash), context.db = db$$1) : context.db = await db({ debug });
+  debug ? (webpack && (context.webpack = webpack, middleware.push(webpack.middleware)), context.db = db$$1) : context.db = await db({ debug });
   const {
     graphql: graphql$$1,
     graphiql,
     localInterface,
     createSubscriptionServer
-  } = graphql$1({ debug, host, port, path: `/${endpoints.graphql}` });
-  graphql$$1 && (routes.push({
-    path: `/${endpoints.graphql}`,
-    verbs: ['get', 'post'],
-    use: graphql$$1
-  }), localInterface && (context.localInterface = localInterface), graphiql && routes.push({
-    path: `/${endpoints.graphiql}`,
+  } = graphql$1({ debug, protocol, domain: domains.graphql, host, port, hrefs });
+  routes.push({
+    path: '/*',
     verbs: ['get'],
-    use: graphiql
-  }));
+    use: async (ctx, next) => {
+      return (/text\/html/.test(ctx.headers.accept) ? (await render(ctx, Object.assign({}, assets, {
+          hrefs,
+          networkInterface: await localInterface(ctx)
+        })), next()) : next()
+      );
+    }
+  }), middleware.push(async (ctx, next) => {
+    ctx.set({ Allow: 'GET, POST' }), await next();
+  });
   const app$$1 = app({
-    keys: ['ssssseeeecret', 'ssshhhhhhhhh'],
+    gql: { graphql: graphql$$1, graphiql },
+    keys,
+    paths,
     routes,
     middleware,
     context,
+    domains,
     debug
   });
   const server = http.createServer(app$$1.callback());
   // eslint-disable-next-line camelcase
   return server.listen(unix_socket || port, () => {
-    unix_socket ? (console.log(`app is listening on unix socket: ${unix_socket}`), fs.openSync('/tmp/app-initialized', 'w')) : console.log(`listening on port: ${port}`), createSubscriptionServer({ server });
+    unix_socket ? (console.log(`app is listening on unix socket: ${unix_socket}`), fs.openSync('/tmp/app-initialized', 'w')) : console.log(`listening on port: ${port}`), createSubscriptionServer(server);
   }), { server, app: app$$1 };
 };
 

@@ -1,4 +1,5 @@
 import 'babel-polyfill';
+import 'whatwg-fetch';
 import React from 'react';
 import { render } from 'react-dom';
 import { BrowserRouter } from 'react-router-dom';
@@ -12,27 +13,39 @@ import './styles/index.css';
 
 (function startup() {
   const {
-    __$__,
-    pewpew: {
-      endpoints: {
-        graphql,
-      },
-    },
-    location: {
-      protocol,
-      host,
-    },
+    __$$__,
+    pewpew: { hrefs },
   } = window;
 
+  const app = {
+    upload(file) {
+      const body = new FormData();
+      body.append('file', file);
+
+      // eslint-disable-next-line compat/compat
+      return fetch(hrefs.upload, {
+        body,
+        method: 'POST',
+        headers: {},
+        credentials: 'same-origin',
+      });
+    },
+  };
+
   const client = configClient({
-    uri: `${protocol}//${host}/${graphql}`,
+    uri: hrefs.graphql,
+    subUri: hrefs.graphqlSub,
+    params: {},
   });
 
-  const store = configStore(__$__, {
+  const store = configStore(__$$__, {
     apollo: client.reducer(),
   }, [client.middleware()]);
 
   const appElement = document.getElementById('app');
+
+  // delete window.pewpew;
+  // delete window.__$$__;
 
   if (process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line import/no-extraneous-dependencies
@@ -43,7 +56,7 @@ import './styles/index.css';
     const renderApp = () => render(<AppContainer>
       <ApolloProvider client={client} store={store}>
         <BrowserRouter>
-          <App appElement={appElement} />
+          <App app={app} appElement={appElement} />
         </BrowserRouter>
       </ApolloProvider>
     </AppContainer>, appElement);
@@ -60,7 +73,7 @@ import './styles/index.css';
 
   return render(<ApolloProvider client={client} store={store}>
     <BrowserRouter>
-      <Application appElement={appElement} />
+      <Application app={app} appElement={appElement} />
     </BrowserRouter>
   </ApolloProvider>, appElement);
 }());

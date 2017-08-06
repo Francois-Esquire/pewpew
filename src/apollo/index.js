@@ -1,16 +1,18 @@
 import ApolloClient, { createNetworkInterface } from 'apollo-client';
 import { SubscriptionClient, addGraphQLSubscriptions } from 'subscriptions-transport-ws';
 
-export default function createClient({ uri }) {
-  const subscriptionInterface = new SubscriptionClient(uri, {
+export default function createClient({ uri, subUri, params }) {
+  const subscriptionInterface = new SubscriptionClient(subUri, {
     lazy: true,
     reconnect: true,
+    connectionParams: () => params,
     connectionCallback: error => console.log(error),
   });
 
   const networkInterface = createNetworkInterface({
     uri,
     opts: {
+      method: 'POST',
       credentials: 'same-origin',
     },
   });
@@ -28,5 +30,6 @@ export default function createClient({ uri }) {
     dataIdFromObject: o => o.id,
     networkInterface: addGraphQLSubscriptions(networkInterface, subscriptionInterface),
     connectToDevTools: process.env.NODE_ENV !== 'production',
+    queryDeduplication: true,
   });
 }

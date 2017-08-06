@@ -12,6 +12,21 @@ const config = require('./config');
 
 const debug = process.env.NODE_ENV !== 'production';
 
+const vendor = [
+  'redux',
+  'react',
+  'react-dom',
+  'react-apollo',
+  'react-helmet',
+  'react-modal',
+  'react-router',
+  'react-router-dom',
+  'react-redux',
+  'prop-types',
+  'whatwg-fetch',
+  'apollo-client',
+  'subscriptions-transport-ws'];
+
 const resolve = {
   modules: ['node_modules'],
   descriptionFiles: ['package.json'],
@@ -184,19 +199,7 @@ module.exports = {
   target: 'web',
   context: __dirname,
   entry: {
-    vendor: [
-      'redux',
-      'react',
-      'react-dom',
-      'react-apollo',
-      'react-helmet',
-      'react-modal',
-      'react-router',
-      'react-router-dom',
-      'react-redux',
-      'prop-types',
-      'apollo-client',
-      'subscriptions-transport-ws'],
+    vendor,
     client: (debug ?
       ['webpack-hot-middleware/client?path=__hmr&timeout=2000&name=app', 'react-hot-loader/patch'] :
       []).concat(join(config.paths.src, 'index.js')),

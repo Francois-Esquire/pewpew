@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const Html = ({ meta, head, html, scripts, window, css }) => (
+const Html = ({ head, html, scripts, window, css }) => (
   <html lang="en">
     <head>
       <meta charSet="utf-8" />
@@ -34,11 +34,12 @@ Html.propTypes = {
     title: PropTypes.object,
   }).isRequired,
   window: PropTypes.shape({
-    __$__: PropTypes.object,
+    __$$__: PropTypes.object,
+    pewpew: PropTypes.object,
   }).isRequired,
   scripts: PropTypes.arrayOf(PropTypes.string).isRequired,
   css: PropTypes.arrayOf(PropTypes.string).isRequired,
-  meta: PropTypes.arrayOf(PropTypes.string).isRequired,
+  // _meta: PropTypes.arrayOf(PropTypes.string).isRequired,
 };
 
 export default Html;

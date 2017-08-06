@@ -24,6 +24,7 @@
     "npm": "5.2.0"
   },
   "scripts": {
+    "benchmark": "siege -c250 -t10s -H 'Accept: text/html' http://localhost:3000",
     "build": "NODE_ENV=production run-s clean build:render build:server webpack",
     "build:dll": "rimraf dist/dll && webpack --config internal/webpack.config.dll.js --display-optimization-bailout",
     "build:render": "rollup -c internal/rollup.config.render.js",
@@ -62,6 +63,7 @@
     "koa-router": "^7.2.1",
     "koa-send": "^4.1.0",
     "koa-session": "^5.4.0",
+    "koa-subdomain": "^2.1.0",
     "microseconds": "^0.1.0",
     "mongoose": "^4.11.5",
     "multer-gridfs-storage": "^1.2.2",
@@ -73,9 +75,11 @@
     "react-modal": "^2.2.2",
     "react-redux": "^5.0.5",
     "react-router-dom": "^4.1.2",
+    "redis": "^2.7.1",
     "redux": "^3.7.2",
     "subscriptions-transport-ws": "^0.7.3",
-    "validator": "^7.2.0"
+    "validator": "^7.2.0",
+    "whatwg-fetch": "^2.0.3"
   },
   "devDependencies": {
     "babel-core": "^6.25.0",
@@ -116,6 +120,7 @@
     "postcss-nested": "^2.1.0",
     "postcss-normalize": "^4.0.0",
     "react-hot-loader": "^3.0.0-beta.7",
+    "redis-server": "^1.1.0",
     "rimraf": "^2.6.1",
     "rollup": "^0.45.2",
     "rollup-loader": "^0.3.0",

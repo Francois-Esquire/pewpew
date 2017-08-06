@@ -7,17 +7,18 @@ module.exports = [{
   context: process.cwd(),
   entry: {
     vendor: [
+      'redux',
       'react',
       'react-dom',
-      'prop-types',
-      'apollo-client',
       'react-apollo',
       'react-helmet',
+      'react-modal',
       'react-router',
       'react-router-dom',
-      'react-modal',
       'react-redux',
-      'redux',
+      'prop-types',
+      'whatwg-fetch',
+      'apollo-client',
       'subscriptions-transport-ws'],
   },
   resolve: {

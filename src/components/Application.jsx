@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 import Helmet from 'react-helmet';
 import ReactModal from 'react-modal';
 
+import PewPew from './icons/pewpew';
 import Header from './Header';
 import Nexus from './Nexus';
 
@@ -40,7 +41,8 @@ class Application extends React.Component {
           exact
           path="/"
           render={() => (<section className="home">
-            <img width="50%" src="/images/pewpew.svg" alt="Pew Pew" />
+            {/* <img width="50%" src="/images/pewpew.svg" alt="Pew Pew" /> */}
+            <PewPew color="#fff" />
             <form
               id="channel"
               onSubmit={(event) => {
