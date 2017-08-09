@@ -678,9 +678,8 @@ var index = async function ({
   return server.listen(port, () => {
     const sockets = [];
     createSubscriptions(server), server.on('connection', socket => {
-      server.getConnections((err, count) => print.log(`connections: ${count}`));
       const socketId = sockets.length;
-      sockets[socketId] = socket, socket.on('close', () => sockets.splice(socketId, 1)), print.log(chalk`new socket connection: ${socketId}, {bold ${Object.keys(socket)}}`);
+      sockets[socketId] = socket, socket.on('close', () => sockets.splice(socketId, 1));
     }), print.log(`
     ${chalk`\n\t{bold.green Server {yellow ${process.pid}} is running}`}
     ${chalk`\n\t{bold listening on port: {hex('ff8800').bold ${port}}}\n`}`);

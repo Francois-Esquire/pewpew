@@ -10,7 +10,7 @@ const debug = process.env.NODE_ENV !== 'production';
 
 module.exports = {
   entry: 'server/index.js',
-  targets: [{ dest: debug ? 'dist/server-dev.js' : 'dist/server.js', format: 'cjs' }],
+  targets: [{ dest: 'dist/server.js', format: 'cjs' }],
   sourceMap: false,
   interop: false,
   external: Object.keys(pkg.dependencies).concat(['http', 'fs', 'os', 'cluster']),
@@ -56,12 +56,12 @@ module.exports = {
         'transform-do-expressions',
         ['minify-replace', {
           replacements: [{
-            identifierName: "debug",
+            identifierName: 'debug',
             replacement: {
-              type: "booleanLiteral",
-              value: debug
-            }
-          }]
+              type: 'booleanLiteral',
+              value: debug,
+            },
+          }],
         }]],
     }),
     cleanup({

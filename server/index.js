@@ -109,12 +109,12 @@ module.exports = async function Server({
     createSubscriptions(server);
 
     server.on('connection', (socket) => {
-      server.getConnections((err, count) => print.log(`connections: ${count}`));
+      // server.getConnections((err, count) => print.log(`connections: ${count}`));
       const socketId = sockets.length;
       sockets[socketId] = socket;
       socket.on('close', () => sockets.splice(socketId, 1));
 
-      print.log(chalk`new socket connection: ${socketId}, {bold ${Object.keys(socket)}}`);
+      // print.log(chalk`new socket connection: ${socketId}, {bold ${Object.keys(socket)}}`);
     });
 
     // setInterval(() => redis.set('uptime', process.uptime()), 1000);

@@ -14,7 +14,7 @@ module.exports = async function master({
     Object.keys(cluster.workers).forEach(id => cluster.workers[id].send('assets', assets));
   }, { paths, print });
 
-  require('./dev.sentry')((sentry, cb) => cb((event) => {
+  require('./dev.sentry')((sentry, files, cb) => cb((event) => {
     switch (event) {
       default: break;
       case 'change': {
