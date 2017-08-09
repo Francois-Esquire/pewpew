@@ -13,16 +13,15 @@ module.exports = {
   targets: [{ dest: debug ? 'dist/server-dev.js' : 'dist/server.js', format: 'cjs' }],
   sourceMap: false,
   interop: false,
-  external: Object.keys(pkg.dependencies).concat(['http', 'fs']),
+  external: Object.keys(pkg.dependencies).concat(['http', 'fs', 'os', 'cluster']),
   plugins: [
-    cjs({
-      ignoreGlobal: true,
-      exclude: 'node_modules/**',
-      ignore: debug ? ['./db'] : [],
-    }),
     gql({
       introspect: 'dist/schema.json',
       language: 'dist/schema.graphql',
+    }),
+    cjs({
+      ignoreGlobal: true,
+      exclude: 'node_modules/**',
     }),
     babel({
       babelrc: false,
@@ -67,6 +66,6 @@ module.exports = {
     }),
     cleanup({
       maxEmptyLines: 0,
-      comments: ['eslint'],
+      // comments: ['eslint'],
     })],
 };

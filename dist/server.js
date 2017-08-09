@@ -1,17 +1,12 @@
 'use strict';
 
 var http = require('http');
+var cluster = require('cluster');
 var graphql = require('graphql');
 var apolloLocalQuery = require('apollo-local-query');
 var subscriptionsTransportWs = require('subscriptions-transport-ws');
-var graphqlServerKoa = require('graphql-server-koa');
-var mongoose = require('mongoose');
-var gridfsStream = require('gridfs-stream');
-var jsonwebtoken = require('jsonwebtoken');
-var validator = require('validator');
-var bcryptNodejs = require('bcrypt-nodejs');
-var graphqlTools = require('graphql-tools');
-var graphqlSubscriptions = require('graphql-subscriptions');
+var redis = require('redis');
+var chalk = require('chalk');
 var koa = require('koa');
 var koaSubdomain = require('koa-subdomain');
 var koaRouter = require('koa-router');
@@ -21,8 +16,114 @@ var koaBodyparser = require('koa-bodyparser');
 var koaSend = require('koa-send');
 var koaMulter = require('koa-multer');
 var koaFavicon = require('koa-favicon');
+var graphqlServerKoa = require('graphql-server-koa');
 var multerGridfsStorage = require('multer-gridfs-storage');
 var microseconds = require('microseconds');
+var mongoose = require('mongoose');
+var gridfsStream = require('gridfs-stream');
+var jsonwebtoken = require('jsonwebtoken');
+var validator = require('validator');
+var bcryptNodejs = require('bcrypt-nodejs');
+var graphqlTools = require('graphql-tools');
+var graphqlSubscriptions = require('graphql-subscriptions');
+
+const { graphqlKoa, graphiqlKoa } = graphqlServerKoa;
+var app = function ({
+  routes,
+  middleware,
+  context,
+  config,
+  schema,
+  debug = !1
+}) {
+  const app = new koa();
+  const router = new koaRouter();
+  app.keys = config.keys, app.subdomainOffset = config.host.split('.').length, Object.assign(app.context, context);
+  const graphql$$1 = graphqlKoa(async ctx => ({
+    schema,
+    rootValue: await ctx.helpers.getRootValue(ctx),
+    context: ctx,
+    debug
+  }));
+  const graphiql = graphiqlKoa({
+    endpointURL: config.hrefs.graphql,
+    subscriptionsEndpoint: config.hrefs.graphqlSub
+  });
+  routes.push({
+    path: '/graphql',
+    verbs: ['get', 'post'],
+    use: graphql$$1
+  }, {
+    path: '/graphiql',
+    verbs: ['get'],
+    use: graphiql
+  });
+  const api = new koaSubdomain().use(config.domains.graphql, new koaRouter().get(`/${config.domains.graphiql}`, graphiql).post('*', graphql$$1).routes());
+  const content = new koaSubdomain().use(config.domains.content, new koaRouter().get(/^(.*)\.(.*){3,4}$/, async ctx => {
+    try {
+      const id = ctx.params[0];
+      const ext = ctx.params[1];
+      const file = await ctx.db.gfs.findOne({ id, filename: `${id}.${ext}` });
+      !file && (ctx.status = 204, ctx.body = 'file could not be found.');
+      const { _id, contentType, filename } = file;
+      ctx.set('Content-Type', contentType), ctx.set('Content-Disposition', `attachment; filename="${filename}"`), ctx.body = ctx.db.gfs.createReadStream({ _id }), ctx.body.on('error', err => {
+        console.log('Got error while processing stream ', err.message), ctx.res.end();
+      });
+    } catch (e) {    }
+  }).routes());
+  const uploads = new koaSubdomain().use(config.domains.upload, new koaRouter().post('/*', koaMulter({
+    storage: new multerGridfsStorage({
+      gfs: context.db.gfs,
+      metadata: (req, file, cb) => {
+        cb(null, file);
+      },
+      root: (req, file, cb) => cb(null, null)
+    }),
+    fileFilter(req, file, cb) {
+      cb(null, !0);
+    },
+    limits: {
+      files: 1
+    },
+    preservePath: !0
+  }).single('file'), async ctx => {
+    ctx.res.statusCode = 200;
+  }).routes());
+  return routes.forEach(route => route.verbs.forEach(verb => router[verb](route.path, route.use))), middleware.forEach(ware => app.use(ware)), app.use(koaHelmet()).use(async (ctx, next) => {
+    try {
+      await next();
+    } catch (e) {
+      ctx.status = 500, ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
+    }
+  }).use(async (ctx, next) => {
+    const start = microseconds.now();
+    await next();
+    const end = microseconds.parse(microseconds.since(start));
+    const total = end.microseconds + end.milliseconds * 1e3 + end.seconds * 1e6;
+    ctx.set('Response-Time', `${total / 1e3}ms`);
+  }).use(koaFavicon(config.paths.favicon)).use(async (ctx, next) => {
+    try {
+      if (ctx.path !== '/') {
+        const root = /^\/(images)\//.test(ctx.path) ? config.paths.assets : config.paths.public;
+        await koaSend(ctx, ctx.path, { root, immutable: !debug });
+      }
+    } catch (e) {    }
+    await next();
+  }).use(koaSession({
+    key: 'persona',
+    maxAge: 86400000,
+    overwrite: !0,
+    httpOnly: !0,
+    signed: !0,
+    rolling: !1
+  }, app), async (ctx, next) => {
+    return ctx.session.parcel = 'parcel', ctx.state.token = ctx.cookies.get('token') || ctx.headers.authorization, next();
+  }).use(koaBodyparser()).use(api.routes()).use(content.routes()).use(uploads.routes()).use(router.routes()).use(router.allowedMethods()), app;
+};
+
+function createCommonjsModule(fn, module) {
+	return module = { exports: {} }, fn(module, module.exports), module.exports;
+}
 
 const PostSchema = new mongoose.Schema({
   by: {
@@ -56,7 +157,6 @@ const PostSchema = new mongoose.Schema({
   }
 });
 PostSchema.virtual('createdAt').get(function () {
-  // eslint-disable-next-line no-underscore-dangle
   return this._id.getTimestamp();
 }), PostSchema.statics = {
   findMessage(id) {
@@ -214,23 +314,36 @@ UserSchema.pre('save', function (next) {
 };
 const User = mongoose.model('User', UserSchema);
 
-mongoose.Promise = global.Promise;
-var db = async ({ debug, uri, options }) => {
-  const mongodbUri = uri || process.env.MONGODB_URI || 'mongodb://localhost:27017/pewpew';
-  const mongodbOptions = options || {
-    useMongoClient: !0,
-    reconnectTries: Number.MAX_VALUE
+var db = createCommonjsModule(function (module) {
+  mongoose.Promise = global.Promise, module.exports = async (mongodbUri, { debug, options }) => {
+    const mongodbOptions = options || {
+      useMongoClient: !0,
+      reconnectTries: Number.MAX_VALUE
+    };
+    mongoose.set('debug', debug);
+    const connection = await mongoose.connect(mongodbUri, mongodbOptions);
+    const gfs = gridfsStream(connection.db, mongoose.mongo);
+    return {
+      connection,
+      gfs
+    };
   };
-  debug && mongoose.set('debug', !0);
-  const connection = await mongoose.connect(mongodbUri, mongodbOptions);
-  const gfs = gridfsStream(connection.db, mongoose.mongo);
-  return {
-    connection,
-    gfs
-  };
+});
+
+var helpers = {
+  async getUser(token, secret) {
+    if (!token || !secret) return { user: null, token: null };
+    try {
+      const decodedToken = jsonwebtoken.verify(token.replace(/^JWT\s{1,}/, ''), secret);
+      const user = await mongoose.model('User').findOne({ _id: decodedToken.sub });
+      return { user, token };
+    } catch (err) {
+      return { user: null, token };
+    }
+  }
 };
 
-const schema$2 = `scalar URL
+const schemaLanguage = `scalar URL
 
 interface Node {
   id: ID!
@@ -390,208 +503,117 @@ schema {
 
 
 var index$2 = Object.freeze({
-	default: schema$2
+	default: schemaLanguage
 });
 
-var schemaIndex = ( index$2 && schema$2 ) || index$2;
+var require$$2 = ( index$2 && schemaLanguage ) || index$2;
 
-const { makeExecutableSchema } = graphqlTools;
-const { withFilter, PubSub } = graphqlSubscriptions;
-const Users = mongoose.model('User');
-const Channels = mongoose.model('Channel');
-const Posts = mongoose.model('Post');
-const pubsub = new PubSub();
-['publish', 'subscribe', 'unsubscribe', 'asyncIterator'].forEach(key => {
-  pubsub[key] = pubsub[key].bind(pubsub);
-});
-const typeDefs = [schemaIndex];
-const resolvers = {
-  URL: {},
-  Query: {
-    tasks: root => root.tasks.concat('graphql'),
-    me: root => root.user,
-    author: async (root, args) => {
-      const { id } = args;
-      const user = await Users.findOne(id);
-      return user;
-    },
-    channel: async (root, { id }) => Channels.findOne(id),
-    channels: async (root, { limit }) => Channels.search(limit)
-  },
-  Mutation: {
-    async join(root, args, ctx) {
-      if (root.user) return root.user;
-      const { handle } = args;
-      const user = await Users.join(handle, ctx);
-      return user;
-    },
-    async signup(root, args, ctx) {
-      if (root.user) return root.user;
-      const { handle, email, password } = args;
-      const user = await Users.createUser(handle, email, password, ctx);
-      return user;
-    },
-    async login(root, args, ctx) {
-      if (root.user) return root.user;
-      const { handle, password } = args;
-      const user = await Users.loginUser(handle, password, ctx);
-      return user;
-    },
-    logout: (root, args, ctx) => root.user && root.user.logout(ctx),
-    changePassword: (root, { pass, word }) => root.user && root.user.changePassword(pass, word),
-    changeHandle: (root, { handle }) => root.user && root.user.changeHandle(handle),
-    changeEmail: (root, { email }) => root.user && root.user.changeEmail(email),
-    deleteAccount: root => root.user && root.user.deleteAccount(),
-    publishChannel: (root, { url, title, description, tags }) => root.user && Channels.publish({ url, title, description, tags }, root.user),
-    updateChannel: (root, { id }) => root.user && Channels.update(id, root.user),
-    joinChannel: (root, { id }) => root.user && Channels.join(id, root.user),
-    abandonChannel: (root, { id }) => root.user && Channels.abandon(id, root.user),
-    async remember(root, { channel, content, kind }) {
-      if (root.user) {
-        const memory = await Posts.create(root.user.id, channel, content, kind);
-        pubsub.publish('memory', { memory });
-      }
-    },
-    async forget(root, { id }) {
-      if (root.user) {
-        const forget = await Posts.forget(id, root.user);
-        pubsub.publish('memory', { forget });
-      }
-    }
-  },
-  Subscription: {
-    uptime: { subscribe: () => pubsub.asyncIterator(['timer']) },
-    moments: {
-      subscribe: withFilter(() => pubsub.asyncIterator(['memory']), ({ moments: { channel } }, variables) => {
-        return channel === variables.channel;
-      })
-    },
-    channel: {
-      subscribe: withFilter(() => pubsub.asyncIterator('broadcast'), (payload, variables, ctx) => payload.to === ctx.user.id)
-    }
-  },
-  Author: {
-    id(root) {
-      return root.id;
-    },
-    email(root) {
-      return root.email;
-    },
-    handle(root) {
-      return root.handle || null;
-    },
-    avatar(root) {
-      return root.avatar || null;
-    }
-  },
-  Channel: {},
-  Moment: {},
-  Post: {}
-};
-setInterval(() => pubsub.publish('timer', {
-  uptime: Math.floor(process.uptime())
-}), 1000), setInterval(() => pubsub.publish('memory', {
-  moments: { id: 'adsgsg', by: 'o8dyvos', channel: '345235' }
-}), 3000);
-var schema = makeExecutableSchema({
-  typeDefs,
-  resolvers,
-  logger: { log: e => console.log(e) },
-  allowUndefinedInResolve: !0
-});
-
-var helpers = {
-  async getUser(token, secret) {
-    if (!token || !secret) return { user: null, token: null };
-    try {
-      const decodedToken = jsonwebtoken.verify(token.replace(/^JWT\s{1,}/, ''), secret);
-      const user = await mongoose.model('User').findOne({ _id: decodedToken.sub });
-      return { user, token };
-    } catch (err) {
-      return { user: null, token };
-    }
-  }
-};
-
-var app = function ({
-  graphql: graphql$$1,
-  graphiql,
-  keys,
-  routes,
-  middleware,
-  context,
-  domains,
-  host,
-  debug = !1
-}) {
-  const app = new koa();
-  const router = new koaRouter();
-  app.keys = keys, app.subdomainOffset = host.split('.').length, Object.assign(app.context, context);
-  const api = new koaSubdomain().use(domains.graphql, new koaRouter().get(`/${domains.graphiql}`, graphiql).post('*', graphql$$1).routes());
-  const content = new koaSubdomain().use(domains.content, new koaRouter().get(/^(.*)\.(.*){3,4}$/, async ctx => {
-    const id = ctx.params[0];
-    const ext = ctx.params[1];
-    const file = await ctx.db.gfs.findOne({ id, filename: `${id}.${ext}` });
-    !file && (ctx.status = 204, ctx.body = 'file could not be found.');
-    const { _id, contentType, filename } = file;
-    ctx.set('Content-Type', contentType), ctx.set('Content-Disposition', `attachment; filename="${filename}"`), ctx.body = ctx.db.gfs.createReadStream({ _id }), ctx.body.on('error', err => {
-      console.log('Got error while processing stream ', err.message), ctx.res.end();
-    });
-  }).routes());
-  const uploads = new koaSubdomain().use(domains.upload, new koaRouter().post('/*', koaMulter({
-    storage: new multerGridfsStorage({
-      gfs: context.db.gfs,
-      metadata: (req, file, cb) => {
-        cb(null, file);
+var schema = createCommonjsModule(function (module) {
+  const { makeExecutableSchema } = graphqlTools;
+  const { withFilter, PubSub } = graphqlSubscriptions;
+  const Users = mongoose.model('User');
+  const Channels = mongoose.model('Channel');
+  const Posts = mongoose.model('Post');
+  const pubsub = new PubSub();
+  ['publish', 'subscribe', 'unsubscribe', 'asyncIterator'].forEach(key => {
+    pubsub[key] = pubsub[key].bind(pubsub);
+  });
+  const resolvers = {
+    URL: {},
+    Query: {
+      tasks: root => root.tasks.concat('graphql'),
+      me: root => root.user,
+      author: async (root, args) => {
+        const { id } = args;
+        const user = await Users.findOne(id);
+        return user;
       },
-      root: (req, file, cb) => cb(null, null)
-    }),
-    fileFilter(req, file, cb) {
-      cb(null, !0);
+      channel: async (root, { id }) => Channels.findOne(id),
+      channels: async (root, { limit }) => Channels.search(limit)
     },
-    limits: {
-      files: 1
-    },
-    preservePath: !0
-  }).single('file'), async ctx => {
-    ctx.res.statusCode = 200;
-  }).routes());
-  return routes && routes.forEach(route => route.verbs.forEach(verb => router[verb](route.path, route.use))), middleware && middleware.forEach(ware => app.use(ware)), app.use(koaHelmet()).use(async (ctx, next) => {
-    try {
-      await next();
-    } catch (e) {
-      ctx.status = 500, ctx.body = `There was an error. Please try again later.\n\n${e.message}`;
-    }
-  }).use(async (ctx, next) => {
-    const start = microseconds.now();
-    await next();
-    const end = microseconds.parse(microseconds.since(start));
-    const total = end.microseconds + end.milliseconds * 1e3 + end.seconds * 1e6;
-    ctx.set('Response-Time', `${total / 1e3}ms`);
-  }).use(koaFavicon(`${process.cwd()}/dist/public/icons/favicon.ico`)).use(async (ctx, next) => {
-    try {
-      if (ctx.path !== '/') {
-        const root = `${process.cwd()}${/^\/(images)\//.test(ctx.path) ? '/assets' : '/dist/public'}`;
-        await koaSend(ctx, ctx.path, { root, immutable: !debug });
+    Mutation: {
+      async join(root, args, ctx) {
+        if (root.user) return root.user;
+        const { handle } = args;
+        const user = await Users.join(handle, ctx);
+        return user;
+      },
+      async signup(root, args, ctx) {
+        if (root.user) return root.user;
+        const { handle, email, password } = args;
+        const user = await Users.createUser(handle, email, password, ctx);
+        return user;
+      },
+      async login(root, args, ctx) {
+        if (root.user) return root.user;
+        const { handle, password } = args;
+        const user = await Users.loginUser(handle, password, ctx);
+        return user;
+      },
+      logout: (root, args, ctx) => root.user && root.user.logout(ctx),
+      changePassword: (root, { pass, word }) => root.user && root.user.changePassword(pass, word),
+      changeHandle: (root, { handle }) => root.user && root.user.changeHandle(handle),
+      changeEmail: (root, { email }) => root.user && root.user.changeEmail(email),
+      deleteAccount: root => root.user && root.user.deleteAccount(),
+      publishChannel: (root, { url, title, description, tags }) => root.user && Channels.publish({ url, title, description, tags }, root.user),
+      updateChannel: (root, { id }) => root.user && Channels.update(id, root.user),
+      joinChannel: (root, { id }) => root.user && Channels.join(id, root.user),
+      abandonChannel: (root, { id }) => root.user && Channels.abandon(id, root.user),
+      async remember(root, { channel, content, kind }) {
+        if (root.user) {
+          const memory = await Posts.create(root.user.id, channel, content, kind);
+          pubsub.publish('memory', { memory });
+        }
+      },
+      async forget(root, { id }) {
+        if (root.user) {
+          const forget = await Posts.forget(id, root.user);
+          pubsub.publish('memory', { forget });
+        }
       }
-    } catch (e) {                              }
-    await next();
-  }).use(koaSession({
-    key: 'persona',
-    maxAge: 86400000,
-    overwrite: !0,
-    httpOnly: !0,
-    signed: !0,
-    rolling: !1
-  }, app), async (ctx, next) => {
-    return ctx.session.parcel = 'parcel', ctx.state.token = ctx.cookies.get('token') || ctx.headers.authorization, next();
-  }).use(koaBodyparser()).use(api.routes()).use(content.routes()).use(uploads.routes()).use(router.routes()).use(router.allowedMethods()), app;
-};
+    },
+    Subscription: {
+      uptime: { subscribe: () => pubsub.asyncIterator(['timer']) },
+      moments: {
+        subscribe: withFilter(() => pubsub.asyncIterator(['memory']), ({ moments: { channel } }, variables) => channel === variables.channel)
+      },
+      channel: {
+        subscribe: withFilter(() => pubsub.asyncIterator('broadcast'), (payload, variables, ctx) => payload.to === ctx.user.id)
+      }
+    },
+    Author: {
+      id(root) {
+        return root.id;
+      },
+      email(root) {
+        return root.email;
+      },
+      handle(root) {
+        return root.handle || null;
+      },
+      avatar(root) {
+        return root.avatar || null;
+      }
+    },
+    Channel: {},
+    Moment: {},
+    Post: {}
+  };
+  setInterval(() => pubsub.publish('timer', {
+    uptime: Math.floor(process.uptime())
+  }), 1000), setInterval(() => pubsub.publish('memory', {
+    moments: { id: 'adsgsg', by: 'o8dyvos', channel: '345235' }
+  }), 3000), module.exports = makeExecutableSchema({
+    typeDefs: [require$$2],
+    resolvers,
+    logger: { log: e => console.log(e) },
+    allowUndefinedInResolve: !0
+  });
+});
 
 const { execute, subscribe } = graphql;
 const { createLocalInterface } = apolloLocalQuery;
 const { SubscriptionServer } = subscriptionsTransportWs;
-const { graphqlKoa, graphiqlKoa } = graphqlServerKoa;
 var index = async function ({
   domains,
   host,
@@ -599,82 +621,70 @@ var index = async function ({
   paths,
   hrefs,
   keys,
-  redis,
+  urls,
   render,
   assets,
+  print,
   debug = !1,
-  webpack,
-  db: db$$1
+  webpack
 }) {
-  const context = {
-    domains,
-    redis
-  };
-  context.db = db$$1 || (await db({ debug }));
-  const routes = [];
   const middleware = [];
-  debug && webpack && middleware.push(webpack.middleware), middleware.push(async (ctx, next) => {
-    ctx.set({ Allow: 'GET, POST' }), await next();
-  });
-  const schema$$1 = schema;
-  const getRootValue = async ctx => Object.assign({
+  const routes = [];
+  const context = {};
+  context.db = await db(urls.mongo, { debug }), context.redis = redis.createClient(urls.redis), context.helpers = helpers, context.helpers.getRootValue = async ctx => Object.assign({
     tasks: ['hey', 'there']
-  }, ctx ? await helpers.getUser(ctx.state.token) : {});
-  const graphql$$1 = graphqlKoa(async ctx => ({
-    schema: schema$$1,
-    rootValue: await getRootValue(ctx),
-    context: ctx,
-    debug
-  }));
-  const graphiql = graphiqlKoa({
-    endpointURL: hrefs.graphql,
-    subscriptionsEndpoint: hrefs.graphqlSub
-  });
-  routes.push({
+  }, ctx ? await ctx.helpers.getUser(ctx.state.token) : {}), debug && webpack && middleware.push(webpack.middleware), middleware.push(async (ctx, next) => {
+    ctx.set({ Allow: 'GET, POST' }), await next();
+  }), routes.push({
     path: '/*',
     verbs: ['get'],
     use: async (ctx, next) => {
-      if (!/text\/html/.test(ctx.headers.accept)) return next();
-      const networkInterface = createLocalInterface({ execute }, schema$$1, { rootValue: await getRootValue(ctx), context: ctx });
-      return await render(ctx, Object.assign({}, assets, {
+      /text\/html/.test(ctx.headers.accept) && (await render(ctx, Object.assign({}, assets, {
         hrefs,
-        networkInterface
-      })), next();
+        networkInterface: createLocalInterface({ execute }, schema, {
+          rootValue: await ctx.helpers.getRootValue(ctx), context: ctx
+        })
+      })), await next());
     }
-  }, {
-    path: '/graphql',
-    verbs: ['get', 'post'],
-    use: graphql$$1
-  }, {
-    path: '/graphiql',
-    verbs: ['get'],
-    use: graphiql
   });
-  const app$$1 = app({
-    graphql: graphql$$1,
-    graphiql,
-    keys,
-    paths,
+  const application = app({
     routes,
     middleware,
     context,
-    domains,
-    host,
+    config: {
+      domains,
+      host,
+      paths,
+      hrefs,
+      keys
+    },
+    schema,
     debug
   });
-  const server = http.createServer(app$$1.callback());
+  const createSubscriptions = server => SubscriptionServer.create({
+    schema,
+    execute,
+    subscribe,
+    onConnect: (params, ws) => {
+      cluster.isWorker && process.send('socket.connect', ws), print.log(chalk`\tonConnect params: {bold ${JSON.stringify(params)}}`);
+    },
+    onOperation: (message, params) => {
+      const { id, type, payload } = message;
+      return print.log(chalk`\tmessage:\n{bold.white ${`id: ${id}\ntype: ${type},\npayload: ${JSON.stringify(payload, void 0, 1)}`}}\n\n\tparams:\n{bold.white ${JSON.stringify(params, void 0, 1)}}`), params;
+    },
+    keepAlive: 1000
+  }, { server });
+  const server = http.createServer(application.callback());
   return server.listen(port, () => {
-    console.log(`listening on port: ${port}`), SubscriptionServer.create({
-      keepAlive: 1000,
-      rootValue: getRootValue,
-      schema: schema$$1,
-      execute,
-      subscribe,
-      onConnect: params => {
-        return console.log('params:', params), !0;
-      }
-    }, { server });
-  }), { server, app: app$$1 };
+    const sockets = [];
+    createSubscriptions(server), server.on('connection', socket => {
+      server.getConnections((err, count) => print.log(`connections: ${count}`));
+      const socketId = sockets.length;
+      sockets[socketId] = socket, socket.on('close', () => sockets.splice(socketId, 1)), print.log(chalk`new socket connection: ${socketId}, {bold ${Object.keys(socket)}}`);
+    }), print.log(`
+    ${chalk`\n\t{bold.green Server {yellow ${process.pid}} is running}`}
+    ${chalk`\n\t{bold listening on port: {hex('ff8800').bold ${port}}}\n`}`);
+  }), server;
 };
 
 module.exports = index;

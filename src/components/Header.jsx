@@ -1,10 +1,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { Switch, Route } from 'react-router-dom';
 import { graphql } from 'react-apollo';
 import anime from 'animejs';
 
 import query from '../../schema/queries/me.gql';
 
+import PewPew from './icons/pewpew';
 import Menu from './Menu';
 
 function Nav({ data, channel }, { modal }) {

@@ -44,7 +44,8 @@ module.exports = function graphql_language (options = {}) {
           schemas[schemaPaths.indexOf(id)] = schema;
         }
 
-        return `const schema = \`${schema}\`;\nexport default schema;`;
+        // return `module.exports = \`${schema}\`;`;
+        return `const schemaLanguage = \`${schema}\`;\nexport default schemaLanguage;`;
       }
       return null;
     },

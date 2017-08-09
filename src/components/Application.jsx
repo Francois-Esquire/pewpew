@@ -1,12 +1,12 @@
 import React from 'react';
-import { Switch, Route } from 'react-router-dom';
 import PropTypes from 'prop-types';
+import { Switch, Route } from 'react-router-dom';
+import Modal from 'react-modal';
 import Helmet from 'react-helmet';
-import ReactModal from 'react-modal';
 
-import PewPew from './icons/pewpew';
 import Header from './Header';
-import Nexus from './Nexus';
+import Home from './Home';
+// import Nexus from './Nexus';
 
 class Application extends React.Component {
   getChildContext() {
@@ -31,42 +31,23 @@ class Application extends React.Component {
   render() {
     const { appElement, isServer, match, location, history, modal, channel } = this.props;
     // eslint-disable-next-line no-confusing-arrow
-    const Modal = () => modal.isOpen && modal.view ?
-      (<modal.view modal={modal} match={match} location={location} history={history} />) : null;
+    // const ModalView = () => ;
 
     return (<main id="view">
-      {/* <Header channel={channel.url} openMenu={this.openMenu} /> */}
+      <Header channel={channel.url} openMenu={this.openMenu} />
       <Switch>
         <Route
           exact
           path="/"
-          render={() => (<section className="home">
-            {/* <img width="50%" src="/images/pewpew.svg" alt="Pew Pew" /> */}
-            <PewPew color="#fff" />
-            <form
-              id="channel"
-              onSubmit={(event) => {
-                event.preventDefault();
-                return history.push(`/${channel.url}`);
-              }}>
-              <label htmlFor="remote">/</label>
-              <input
-                id="remote"
-                type="text"
-                value={channel.url}
-                placeholder="Tune in to..."
-                onChange={({ target: { value } }) => channel.change(value.toLowerCase())} />
-              <button type="submit">Go</button>
-            </form>
-          </section>)} />
-        <Route
+          render={() => <Home history={history} channel={channel} />} />
+        {/* <Route
           path="/:channel"
-          render={({ match: { params } }) => (<Nexus channel={params.channel} />)} />
+          render={({ match: { params } }) => (<Nexus channel={params.channel} />)} /> */}
       </Switch>
       <footer>
         <h6><a href="https://github.com/Francois-Esquire/pewpew">github</a></h6>
       </footer>
-      <ReactModal
+      <Modal
         contentLabel={modal.label}
         role={modal.role}
         isOpen={modal.isOpen}
@@ -80,9 +61,9 @@ class Application extends React.Component {
         overlayClassName={modal.styleNames.overlayClassName}
         bodyOpenClassName={modal.styleNames.bodyOpenClassName}
         appElement={appElement}
-        ariaHideApp>
-        <Modal />
-      </ReactModal>
+        ariaHideApp>{modal.isOpen && modal.view ?
+          (<modal.view modal={modal} match={match} location={location} history={history} />) : null
+        }</Modal>
       <Helmet
         encodeSpecialCharacters={!isServer}
         titleTemplate="%s | Pew Pew">

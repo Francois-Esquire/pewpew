@@ -83,8 +83,29 @@ function configureStore(
   const initialState = state || undefined;
   const rootReducer = redux.combineReducers(Object.assign({}, reducers, rootReducers));
   const enhancers = [redux.applyMiddleware.apply(void 0, middleware)];
+  {
+    const enhancements = (
+      typeof window === 'object' &&
+      // eslint-disable-next-line no-underscore-dangle
+      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ?
+      // eslint-disable-next-line no-underscore-dangle
+      window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__({}) : redux.compose
+    ).apply(void 0, enhancers);
+    const store = redux.createStore(rootReducer, initialState, enhancements);
+    if (module && module.hot) {
+      module.hot.accept('./reducers', function () {
+        const nextReducers = require('./reducers').default;
+        store.replaceReducer(redux.combineReducers(Object.assign({}, reducers,
+          nextReducers)));
+      });
+    }
+    return store;
+  }
   return redux.createStore(rootReducer, initialState, redux.compose.apply(void 0, enhancers));
 }
+
+var doc = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Moi"},"variableDefinitions":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"me"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"email"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"handle"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"avatar"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"channels"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null}]}},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"moments"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null}]}}]}}]}}],"loc":{"start":0,"end":123}};
+    doc.loc.source = {"body":"query Moi {\n  me {\n    id\n    email\n    handle\n    avatar\n    channels {\n      id\n    }\n    moments {\n      id\n    }\n  }\n}\n","name":"GraphQL request","locationOffset":{"line":1,"column":1}};
 
 const PewPew = function (ref) {
   var color = ref.color;
@@ -100,9 +121,6 @@ const PewPew = function (ref) {
   )
 ));
 };
-
-var doc = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Moi"},"variableDefinitions":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"me"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"email"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"handle"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"avatar"},"arguments":[],"directives":[],"selectionSet":null},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"channels"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null}]}},{"kind":"Field","alias":null,"name":{"kind":"Name","value":"moments"},"arguments":[],"directives":[],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":null,"name":{"kind":"Name","value":"id"},"arguments":[],"directives":[],"selectionSet":null}]}}]}}]}}],"loc":{"start":0,"end":123}};
-    doc.loc.source = {"body":"query Moi {\n  me {\n    id\n    email\n    handle\n    avatar\n    channels {\n      id\n    }\n    moments {\n      id\n    }\n  }\n}\n","name":"GraphQL request","locationOffset":{"line":1,"column":1}};
 
 const MainMenu = function (ref) {
   var children = ref.children;
@@ -170,45 +188,36 @@ Nav.contextTypes = {
 };
 const Header = reactApollo.graphql(doc)(Nav);
 
-var Hub = (function (superclass) {
-  function Hub () {
-    superclass.apply(this, arguments);
-  }
-  if ( superclass ) Hub.__proto__ = superclass;
-  Hub.prototype = Object.create( superclass && superclass.prototype );
-  Hub.prototype.constructor = Hub;
-  Hub.prototype.render = function () {
-    var ref = this.props;
-    var channel = ref.channel;
-    var location = ref.location;
-    var history = ref.history;
-    var data = ref.data;
-    return (React.createElement( 'section', { className: "nexus" },
-      React.createElement( 'header', null,
-        React.createElement( 'img', { width: "50%", src: "/images/pewpew.svg", alt: "Pew Pew" }),
-        React.createElement( 'h1', null, React.createElement( 'span', null, "/" ), channel )
-      )
-                                      ,
-      React.createElement( Helmet, null,
-        React.createElement( 'title', null, channel )
-      )
-    ));
-  };
-  return Hub;
-}(React.PureComponent));
-Hub.propTypes = {
-  // eslint-disable-next-line react/forbid-prop-types
-  location: PropTypes.object,
+const Home = function (ref) {
+  var history = ref.history;
+  var channel = ref.channel;
+  return (React.createElement( 'section', { className: "home" },
+  React.createElement( PewPew, { color: "#fff" }),
+  React.createElement( 'form', {
+    id: "channel", onSubmit: function (event) {
+      event.preventDefault();
+      return history.push(`/${channel.url}`);
+    } },
+    React.createElement( 'label', { htmlFor: "remote" }, "/"),
+    React.createElement( 'input', {
+      id: "remote", type: "text", value: channel.url, placeholder: "Tune in to...", onChange: function (ref) {
+        var value = ref.target.value;
+        return channel.change(value.toLowerCase());
+  } }),
+    React.createElement( 'button', { type: "submit" }, "Go")
+  )
+));
+};
+Home.propTypes = {
   // eslint-disable-next-line react/forbid-prop-types
   history: PropTypes.object,
-  channel: PropTypes.string,
+  // eslint-disable-next-line react/forbid-prop-types
+  channel: PropTypes.object,
 };
-Hub.defaultProps = {
-  location: {},
+Home.defaultProps = {
   history: {},
-  channel: '',
+  channel: {},
 };
-const Nexus = reactApollo.graphql(doc)(Hub);
 
 var Application$1 = (function (superclass) {
   function Application () {
@@ -243,42 +252,18 @@ var Application$1 = (function (superclass) {
     var modal = ref.modal;
     var channel = ref.channel;
     // eslint-disable-next-line no-confusing-arrow
-    const Modal = function () { return modal.isOpen && modal.view ?
-      (React.createElement( modal.view, { modal: modal, match: match, location: location, history: history })) : null; };
-    return (React.createElement( 'main', { id: "view" }
-                                                                     ,
+    return (React.createElement( 'main', { id: "view" },
+      React.createElement( Header, { channel: channel.url, openMenu: this.openMenu }),
       React.createElement( reactRouterDom.Switch, null,
         React.createElement( reactRouterDom.Route, {
-          exact: true, path: "/", render: function () { return (React.createElement( 'section', { className: "home" }
-                                                                            ,
-            React.createElement( PewPew, { color: "#fff" }),
-            React.createElement( 'form', {
-              id: "channel", onSubmit: function (event) {
-                event.preventDefault();
-                return history.push(`/${channel.url}`);
-              } },
-              React.createElement( 'label', { htmlFor: "remote" }, "/"),
-              React.createElement( 'input', {
-                id: "remote", type: "text", value: channel.url, placeholder: "Tune in to...", onChange: function (ref) {
-                  var value = ref.target.value;
-                  return channel.change(value.toLowerCase());
-            } }),
-              React.createElement( 'button', { type: "submit" }, "Go")
-            )
-          )); } }),
-        React.createElement( reactRouterDom.Route, {
-          path: "/:channel", render: function (ref) {
-            var params = ref.match.params;
-            return (React.createElement( Nexus, { channel: params.channel }));
-    } })
+          exact: true, path: "/", render: function () { return React.createElement( Home, { history: history, channel: channel }); } })
       ),
       React.createElement( 'footer', null,
         React.createElement( 'h6', null, React.createElement( 'a', { href: "https://github.com/Francois-Esquire/pewpew" }, "github") )
       ),
       React.createElement( ReactModal, {
-        contentLabel: modal.label, role: modal.role, isOpen: modal.isOpen, onAfterOpen: modal.onOpen, onRequestClose: function () { return modal.onClose(modal.close); }, closeTimeoutMS: modal.delay, shouldCloseOnOverlayClick: true, style: modal.style, className: modal.styleNames.className, portalClassName: modal.styleNames.portalClassName, overlayClassName: modal.styleNames.overlayClassName, bodyOpenClassName: modal.styleNames.bodyOpenClassName, appElement: appElement, ariaHideApp: true },
-        React.createElement( Modal, null )
-      ),
+        contentLabel: modal.label, role: modal.role, isOpen: modal.isOpen, onAfterOpen: modal.onOpen, onRequestClose: function () { return modal.onClose(modal.close); }, closeTimeoutMS: modal.delay, shouldCloseOnOverlayClick: true, style: modal.style, className: modal.styleNames.className, portalClassName: modal.styleNames.portalClassName, overlayClassName: modal.styleNames.overlayClassName, bodyOpenClassName: modal.styleNames.bodyOpenClassName, appElement: appElement, ariaHideApp: true }, modal.isOpen && modal.view ?
+          (React.createElement( modal.view, { modal: modal, match: match, location: location, history: history })) : null),
       React.createElement( Helmet, {
         encodeSpecialCharacters: !isServer, titleTemplate: "%s | Pew Pew" },
         React.createElement( 'title', { itemProp: "name", lang: "en" }, "Shoot")

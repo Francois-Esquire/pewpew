@@ -1,4 +1,5 @@
-const fs = require('fs');
+const cluster = require('cluster');
+const chalk = require('chalk');
 
 (async function startup({
   protocol,
@@ -9,212 +10,127 @@ const fs = require('fs');
   hrefs,
   keys,
   urls,
+  options,
   debug,
 }) {
-  const css = [];
-  const scripts = [];
-  const meta = [];
+  const { clustering } = options;
+
+  // eslint-disable-next-line no-console
+  const log = message => console.log(chalk.blue(message));
+  // eslint-disable-next-line no-console
+  const report = message => console.log(chalk.bold.greenBright(message));
+  // eslint-disable-next-line no-console
+  const warn = message => console.warn(chalk.bold.yellow(message));
+  // eslint-disable-next-line no-console
+  const yell = message => console.error(chalk.bold.magenta(message));
+
+  const print = { log, report, warn, yell };
+
+  if (cluster.isMaster) {
+    log(chalk`
+      {bold {hex('7659d0') Welcome} {cyan to} {green Pew} {yellow Pew}{yellow !}} (codename {hex('2bc0da') Doodad})
+
+      {hex('2bc0da').bold NODE_ENV:} {yellow.bold ${process.env.NODE_ENV}}
+      {bold PORT:} {yellow.bold ${process.env.PORT}}
+
+      {bold Master {yellow ${process.pid}} is running}
+      {bold Clustering is ${clustering.enabled ? chalk`{greenBright enabled}` : chalk`{yellow disabled}`}}
+      {bold.yellow ${clustering.length}} cpus available
+      {bold.yellow ${clustering.enabled ? clustering.use || clustering.length : 1}} cpus used
+    `);
+  }
 
   try {
-    fs.stat(`${__dirname}/dist/public/stats/icons.json`, (error) => {
-      if (error) throw error;
-      else meta.push(require('./dist/public/stats/icons.json').html.join(''));
-    });
+    if (cluster.isWorker) {
+      const start = debug ? './internal/dev.start' : './internal/prod.start';
 
-    if (debug) {
-      require('redis').debug_mode = true;
-
-      let server;
-      const sockets = [];
-
-      const webpack = {
-        config: require('./webpack.config.js'),
-      };
-
-      // eslint-disable-next-line import/no-extraneous-dependencies
-      webpack.middleware = require('koa-webpack')(Object.assign(webpack, {
-        // eslint-disable-next-line import/no-extraneous-dependencies
-        compiler: require('webpack')(webpack.config),
-        dev: {
-          publicPath: webpack.config.output.publicPath,
-          serverSideRender: true,
-          compress: true,
-          lazy: false,
-          hot: true,
-          overlay: true,
-          quiet: false,
-          stats: {
-            errors: true,
-            colors: true,
-          },
-          watchOptions: {
-            aggregateTimeout: 1200,
-          },
-        },
-        hot: {
-          path: '/__hmr',
-          heartbeat: 1000,
-        },
-      }));
-
-      webpack.compiler.plugin('done', (stats) => {
-        if (webpack.hash !== stats.hash) {
-          const js = scripts.map(src => src.replace(`.${webpack.hash}.`, '.'));
-
-          Object.keys(stats.compilation.assets)
-            .forEach((src) => {
-              if (src.endsWith('.js')) {
-                const filename = src.replace(`.${stats.hash}.`, '.');
-                if (!/^hot\..*/.test(filename)) {
-                  if (js.includes(filename)) scripts.splice(js.indexOf(filename), 1, src);
-                  else if (src.startsWith('manifest')) scripts.unshift(src);
-                  else scripts.push(src);
-                }
-              }
-            });
-
-          // eslint-disable-next-line no-confusing-arrow
-          scripts.sort(src => src.startsWith('client') ? 1 : -1);
-
-          webpack.hash = stats.hash;
-        }
+      // eslint-disable-next-line import/no-dynamic-require
+      await require(start)({
+        protocol,
+        domains,
+        host,
+        port,
+        paths,
+        hrefs,
+        keys,
+        urls,
+        print,
+        debug,
       });
+    } else if (clustering.enabled) {
+      const master = debug ? './internal/dev.master' : './internal/prod.master';
 
-      const db = await require('./server/db')({ debug });
-
-      // eslint-disable-next-line import/no-extraneous-dependencies
-      const sentry = require('chokidar')
-        .watch(['./dist/*.js', './server/models/*.js']);
-
-      sentry.on('ready', async () => {
-        const mongoose = require('mongoose');
-
-        const redis = require('redis')
-          .createClient(urls.redis)
-          // eslint-disable-next-line no-use-before-define
-          .on('connect', runServer);
-
-        function runServer() {
-          if (server && server.listening) {
-            if (sockets.length) sockets.forEach(socket => socket.destroy());
-            // eslint-disable-next-line no-console
-            server.close(() => console.log('server updated, restarting!'));
-          }
-
-          process.nextTick(() => require('./dist/server-dev')({
-            protocol,
-            domains,
-            host,
-            port,
-            paths,
-            hrefs,
-            keys,
-            redis,
-            render: require('./dist/render.js'),
-            assets: { css, scripts, meta, hash: webpack.hash },
-            debug,
-            webpack,
-            db,
-          }).then((p) => {
-            server = p.server.on('connection', (socket) => {
-              const socketId = sockets.length;
-              sockets[socketId] = socket;
-              socket.on('close', () => sockets.splice(socketId, 1));
-            });
-          }));
-        }
-
-        sentry.on('all', (event, src) => {
-          switch (event) {
-            default: break;
-            case 'change': {
-              if (src === 'dist/render.js') delete require.cache[`${__dirname}/dist/render.js`];
-              else if (/server\/models\/.*\.js/.test(src)) {
-                delete require.cache[`${__dirname}/${src}`];
-
-                const name = src.replace('server/models/', '').replace('.js', '');
-                const [a, ...b] = name;
-                const modelName = `${a.toUpperCase()}${b.join('').replace(/s$/, '')}`;
-
-                delete mongoose.models[modelName];
-                delete mongoose.connection.collections[name];
-                delete mongoose.modelSchemas[modelName];
-
-                process.nextTick(require, `./server/models/${name}.js`);
-              }
-
-              delete require.cache[`${__dirname}/dist/server-dev.js`];
-
-              runServer();
-              break;
-            }
-          }
-        });
-
-        return runServer();
+      // eslint-disable-next-line import/no-dynamic-require
+      require(master)({
+        clustering,
+        paths,
+        print,
       });
     } else {
-      const os = require('os');
-      const cluster = require('cluster');
-      const redis = require('redis').createClient(urls.redis);
-      const render = require('./dist/render');
-      const server = require('./dist/server');
-      const { assetsByChunkName, hash } = require('./dist/stats/bundle.json');
+      const monolith = debug ? './internal/dev.server' : './internal/prod.start';
 
-      Object.keys(assetsByChunkName)
-        .forEach(chunk => assetsByChunkName[chunk].forEach((src) => {
-          if (/js\//.test(src)) {
-            if (src.startsWith('js/manifest')) scripts.unshift(src);
-            else scripts.push(src);
-          } else if (/css\//.test(src)) css.push(src);
-        }));
-
-      // eslint-disable-next-line no-confusing-arrow
-      scripts.sort(src => src.startsWith('client') ? 1 : -1);
-
-      if (cluster.isMaster) {
-        let count = Math.floor(os.cpus().length / 2);
-
-        while (count !== 0) {
-          cluster
-            .fork()
-            .on('exit', (worker, code) => {
-              console.log(`worker ${worker.process.pid} died, code: ${code}.`);
-            });
-          count -= 1;
-        }
-        // console.log(`Master ${process.pid} is running`);
-      } else {
-        server({
-          protocol,
-          domains,
-          host,
-          port,
-          paths,
-          hrefs,
-          keys,
-          redis,
-          render,
-          assets: { css, scripts, meta, hash },
-        });
-      }
+      // eslint-disable-next-line import/no-dynamic-require
+      await require(monolith)({
+        protocol,
+        domains,
+        host,
+        port,
+        paths,
+        hrefs,
+        keys,
+        urls,
+        print,
+        debug,
+      });
     }
   } catch (error) {
     switch (error.code) {
       default: throw error;
       case 'MODULE_NOT_FOUND':
       case 'ENOENT': {
-        // eslint-disable-next-line no-console
-        console.warn('\n/***/\nPlease make sure to fire "npm install && npm run build" to kickstart the project.\n/***/\n');
+        warn(`
+          /***/
+
+          Please make sure to fire:
+
+            "npm install && npm run build"
+
+          to kickstart the project.
+
+          /***/
+        `);
         break;
       }
-      // also check for mongo is running locally or able to connect.
-      // check for redis as well.
     }
   }
 
-  process.on('unhandledRejection', (reason, promise) => {
-    // eslint-disable-next-line no-console
-    console.log('Unhandled Rejection at:', promise, 'reason:', reason);
-  });
+  // also check for mongo is running locally or able to connect.
+  // check for redis as well.
+  // handle mongoose errors better.
+
+  process.on('unhandledRejection', reason => yell(chalk`
+    /** Unhandled Rejection **/
+
+    {blue Stay cool,} {green there was an unhandled promise rejection...}
+
+    {yellow ${reason}}
+    {gray ${reason.stack.replace(reason, '')}}
+
+    /** {cyan You Got This} **/`));
+
+  process.on('uncaughtException', error => yell(chalk`
+    /** Uncaught Exception **/
+
+    {blue Hold up,} {green there was an uncaught exception...}
+
+    {yellow ${error.message}}
+
+\t${(function codewhisperer() {
+    switch (error.code) {
+      default: return error.code;
+    }
+  }())}
+\t{gray ${error.stack.replace(error, '')}}
+
+    /** {cyan You Got This} **/\n`));
 }(require('./config')));

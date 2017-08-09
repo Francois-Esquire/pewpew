@@ -11,9 +11,7 @@ const pubsub = new PubSub();
 ['publish', 'subscribe', 'unsubscribe', 'asyncIterator']
   .forEach((key) => { pubsub[key] = pubsub[key].bind(pubsub); });
 
-const schemaIndex = require('../schema/index.graphql');
-
-const typeDefs = [schemaIndex];
+const typeDefs = [require('../schema/index.graphql')];
 
 const resolvers = {
   URL: {
@@ -90,10 +88,7 @@ const resolvers = {
       //   return { data: { moments } };
       // },
       subscribe: withFilter(() => pubsub.asyncIterator(['memory']),
-        ({ moments: { channel } }, variables) => {
-          // console.log(channel, variables);
-          return channel === variables.channel;
-        }),
+        ({ moments: { channel } }, variables) => channel === variables.channel),
     },
     channel: {
       // resolve: (payload, args) => payload,
