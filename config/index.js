@@ -57,7 +57,7 @@ const options = {
   clustering: {
     enabled: !debug,
     length: os.cpus().length,
-    // use: Math.floor(3 * (os.cpus().length / 4)),
+    use: Math.floor(3 * (os.cpus().length / 4)),
   },
 };
 

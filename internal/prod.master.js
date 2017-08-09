@@ -12,7 +12,6 @@ module.exports = function master({
       .fork()
       .on('online', () => {
         print.log('online');
-        fork.send('initialize', hndl => console.log('initialized', hndl));
       })
       .on('message', (message, handle) => {
         const [type, action] = message.split('.');
