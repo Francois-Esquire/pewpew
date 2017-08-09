@@ -32,6 +32,7 @@ npm run build
 
 ### TODO
 - [ ] Testing
+- [ ] Polish Child Process Clustering When Developing.
 
 [meetup]: https://www.meetup.com/ReactNYC/events/240619695/
 [slides]: http://slides.com/michaeltobia/graphql/
