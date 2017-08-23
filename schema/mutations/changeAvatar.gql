@@ -1,0 +1,3 @@
+mutation changeAvatar($avatar: String!) {
+  changeAvatar(avatar: $avatar)
+}

@@ -1,14 +1,33 @@
 scalar URL
 
+enum Types {
+  TEXT
+  LINK
+  IMAGE
+  AUDIO
+  VIDEO
+  LIVE
+}
+
 interface Node {
   id: ID!
+}
+
+type Moment implements Node {
+  id: ID!
+  by: ID
+  kind: Types
+  content: String
+  reactions: [Moment]
+  channel: ID!
+  thread: ID
 }
 
 interface User {
   handle: String!
   avatar: URL
   channels: [Channel]
-  moments(channel: ID): [Post]
+  moments(channel: ID): [Moment]
 }
 
 type Author implements Node, User {
@@ -16,7 +35,7 @@ type Author implements Node, User {
   handle: String!
   avatar: URL
   channels: [Channel]
-  moments(channel: ID): [Post]
+  moments(channel: ID): [Moment]
   email: String
 }
 
@@ -25,7 +44,7 @@ type Contributor implements Node, User {
   handle: String!
   avatar: URL
   channels: [Channel]
-  moments(channel: ID): [Post]
+  moments(channel: ID): [Moment]
 }
 
 type Channel implements Node {
@@ -41,62 +60,80 @@ type Channel implements Node {
   moments(
     limit: Int = 64,
     kinds: [Types]
-    ): [Post]
+    ): [Moment]
 }
 
-interface Moment {
-  id: ID!
-  by: ID
-  kind: Types
-  content: String
+type Signature {
+  id: String
+  type: String
 }
 
-enum Types {
-  TEXT
-  IMAGE
-  VIDEO
-  AUDIO
-  LINK
-}
+union Payload = Channel | Moment | Contributor
 
-type Post implements Moment {
-  id: ID!
-  by: ID
-  kind: Types
-  content: String
-  reactions: [Post]
-  channel: ID!
+type Pulse {
+  action: String
+  payload: Payload
 }
 
 type Query {
   tasks: [String]
-  me: Author
+  me(
+    withChannels: Boolean = false
+    withMoments: Boolean = false
+    detailed: Boolean = false
+    ): Author
   author(
     id: ID
     ): Contributor
+  authors(
+    channels: [ID]
+    ): [Contributor]
   channel(
-    id: ID
+    id: ID,
+    url: String
     ): Channel
   channels(
     limit: Int = 16
     ): [Channel]
+  moments(
+    channel: ID!
+    limit: Int = 16
+    withReactions: Boolean = false
+    ): [Moment]
 }
 
 type Mutation {
   join(
     handle: String!
-    ): Contributor
+    ): Signature
   signup(
     email: String!
     handle: String!
     password: String!
-    ): Author
+    ): Signature
   login(
-    handle: String!
+    email: String
+    handle: String
     password: String!
-    ): Author
+    ): Signature
   logout(
     session: String
+    ): Boolean
+  sendRecovery(
+    email: String
+    handle: String
+    ): Boolean
+  sendVerification(
+    email: String
+    ): Boolean
+  verifyEmail(
+    token: String!
+    email: String!
+    ): Boolean
+  recoverAccount(
+    token: String!
+    pass: String!
+    word: String!
     ): Boolean
   changePassword(
     pass: String!
@@ -108,7 +145,12 @@ type Mutation {
   changeEmail(
     email: String!
     ): Boolean
-  deleteAccount: Boolean
+  changeAvatar(
+    avatar: String!
+    ): Boolean
+  deleteAccount(
+    password: String!
+    ): Boolean
 
   publishChannel(
     url: String!
@@ -127,13 +169,23 @@ type Mutation {
     ): Boolean
 
   remember(
-    channel: String!
+    channel: ID!
     content: String!
-    kind: String!
+    kind: Types!
+    ): Moment
+  relive(
+    id: ID!
+    content: String!
+    kind: Types!
+    ): Moment
+  react(
+    id: ID!
+    content: String!
+    kind: Types!
     ): Moment
   forget(
     id: String!
-    ): Moment
+    ): Boolean
 }
 
 type Subscription {
@@ -141,12 +193,14 @@ type Subscription {
   topics(
     tags: [String]
     ): String
+  channels: [Channel]
+  channel(
+    id: ID
+    url: String
+    ): Pulse
   moments(
     channel: ID!
-    ): Post
-  channel(
-    id: ID!
-    ): Channel
+    ): Pulse
 }
 
 schema {

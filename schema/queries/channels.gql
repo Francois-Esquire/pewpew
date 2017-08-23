@@ -1,0 +1,10 @@
+query Channels($limit: Int) {
+  channels(limit: $limit) {
+    id
+    by
+    url
+    title
+    description
+    tags
+  }
+}

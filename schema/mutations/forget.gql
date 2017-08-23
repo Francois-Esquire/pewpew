@@ -1,0 +1,3 @@
+mutation ForgetMoment($id: ID) {
+  forget(id: $id)
+}

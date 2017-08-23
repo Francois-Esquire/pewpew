@@ -1,37 +1,30 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 
 import PewPew from './icons/pewpew';
+import AuthorView from './views/AuthorView';
+import ChannelView from './views/ChannelView';
+import ContributorsView from './views/ContributorsView';
+import ChannelSearch from './forms/ChannelSearch';
+import LoginForm from './forms/LoginForm';
 
-const Home = ({ history, channel }) => (<section className="home">
-  <PewPew color="#fff" />
-  <form
-    id="channel"
-    onSubmit={(event) => {
-      event.preventDefault();
-      return history.push(`/${channel.url}`);
-    }}>
-    <label htmlFor="remote">/</label>
-    <input
-      id="remote"
-      type="text"
-      value={channel.url}
-      placeholder="Tune in to..."
-      onChange={({ target: { value } }) => channel.change(value.toLowerCase())} />
-    <button type="submit">Go</button>
-  </form>
-</section>);
+const Home = ({ staticContext }) => {
+  if (staticContext) Object.assign(staticContext, { channel: '', view: 'home' });
 
-Home.propTypes = {
-  // eslint-disable-next-line react/forbid-prop-types
-  history: PropTypes.object,
-  // eslint-disable-next-line react/forbid-prop-types
-  channel: PropTypes.object,
-};
-
-Home.defaultProps = {
-  history: {},
-  channel: {},
+  return (<section className="home">
+    <header>
+      <PewPew color="#fff" />
+    </header>
+    <ChannelSearch />
+    <ChannelView />
+    <ContributorsView />
+    <AuthorView />
+    <section>
+      <header>
+        <h3>Log In</h3>
+      </header>
+      <LoginForm />
+    </section>
+  </section>);
 };
 
 export default Home;

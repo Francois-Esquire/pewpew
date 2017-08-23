@@ -1,0 +1,16 @@
+query Channel($id: ID, $url: String, $limit: Int, $kinds: [Types], $momentum: Boolean) {
+  channel(id: $id, url: $url) {
+    id
+    by
+    url
+    title
+    description
+    tags
+    moments (limit: $limit, kinds: $kinds) @include(if: $momentum) {
+      id
+      by
+      kinds
+      content
+    }
+  }
+}

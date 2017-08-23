@@ -1,14 +1,38 @@
-query Moi {
+query Moi($withChannels: Boolean, $withMoments: Boolean, $detailed: Boolean,) {
   me {
     id
     email
     handle
     avatar
-    channels {
+    channels @include(if: $withChannels) {
       id
+      by
+      url
+      title
+      description
+      tags
+      members @include(if: $detailed) {
+        id
+        handle
+        avatar
+      }
+      present @include(if: $detailed)
+      moments(
+        limit: $limit,
+        types: $types
+        ) @include(if: $detailed) {
+          id
+          by
+          type
+          content
+        }
     }
-    moments {
+    moments @include(if: $withMoments) {
       id
+      by
+      kind
+      content
+      channel
     }
   }
 }

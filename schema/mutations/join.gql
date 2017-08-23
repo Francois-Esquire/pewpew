@@ -1,0 +1,6 @@
+mutation Join($handle: String!) {
+  join(handle: $handle) {
+    id
+    handle
+  }
+}

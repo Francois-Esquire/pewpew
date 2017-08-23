@@ -1,0 +1,3 @@
+mutation SendRecovery($email: String, $handle: String) {
+  sendRecovery(email: $email, handle: $handle)
+}

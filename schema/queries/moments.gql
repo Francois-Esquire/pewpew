@@ -1,5 +1,17 @@
-query Moments {
-  moments {
-
+query Moments(channel: ID!, $limit: Int, $withReactions: Boolean) {
+  moments(channel: $channel, limit: $limit) {
+    id
+    by
+    kind
+    content
+    channel
+    reactions @include(if: $withReactions) {
+      id
+      by
+      kind
+      content
+      channel
+      thread
+    }
   }
 }

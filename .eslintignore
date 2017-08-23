@@ -2,6 +2,3 @@ node_modules
 assets
 dist
 internal/plugins
-util
-webpack.config.js
-*.es

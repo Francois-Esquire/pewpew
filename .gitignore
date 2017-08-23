@@ -1,4 +1,3 @@
-util
+util/
 node_modules
 npm-debug.log
-dist/server-dev.js

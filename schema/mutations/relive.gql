@@ -1,0 +1,13 @@
+mutation ReliveMoment(
+  $id: ID!
+  $content: String!
+  $kind: Types!
+  ) {
+    relive(id: $id, content: $content, kind: $kind) {
+      id
+      by
+      kind
+      content
+      channel
+    }
+  }

@@ -1,54 +1,36 @@
 const mongoose = require('mongoose');
 const chalk = require('chalk');
 
-module.exports = ({
-  protocol,
-  domains,
-  host,
-  port,
-  paths,
-  hrefs,
-  keys,
-  urls,
-  print,
-  debug,
-}) => {
-  require('redis').debug_mode = false;
+const sockets = require('./manager.socket');
+
+module.exports = async function development() {
   const cwd = process.cwd();
-  const sockets = [];
-  const models = [];
-  let assets = {};
-  let server;
+  const models = new Set();
+  let initialized = false;
+  let server = null;
 
-  const webpack = require('./dev.webpack')(({ css, scripts, meta, hash }) => {
-    assets = { css, scripts, meta, hash };
-
-    restartServer();
-  }, { paths, print });
+  require('redis').debug_mode = false;
+  const webpack = await require('./dev.webpack')();
 
   const serve = async () => {
+    if (initialized === false) initialized = true;
+
     server = await require('../dist/server')({
-      protocol,
-      domains,
-      host,
-      port,
-      paths,
-      hrefs,
-      keys,
-      urls,
-      render: require('../dist/render.js'),
-      assets,
-      print,
-      debug,
+      emails: require('../dist/emails.js'),
+      render: require('../dist/render'),
+      assets: webpack.assets,
       webpack,
     });
 
-    server.on('connection', (socket) => {
-      // print.log(chalk`new socket connection: ${socket.id}`);
-      const socketId = sockets.length;
-      sockets[socketId] = socket;
-      socket.on('close', () => sockets.splice(socketId, 1));
-    });
+    server
+      .on('subscription.connect', socket => sockets.connect(socket, 'subscription'))
+      .on('connection', socket => sockets.connect(socket))
+      .on('listnening', () => webpack.publish({
+        name: webpack.config.name,
+        target: 'server',
+        action: 'listening',
+        time: Date.now(),
+      }));
 
     return server;
   };
@@ -66,61 +48,53 @@ module.exports = ({
   }
 
   function restartServer() {
-    if (server && server.listening) {
-      models.forEach(releaseModel);
-      if (sockets.length) sockets.forEach(socket => socket.destroy());
-      server.close(() => print.report(chalk`\n\t{yellow Server closed.}\n\tRestarting!`));
-    }
+    if (initialized) {
+      if (server && server.listening) {
+        sockets.purge();
+        server.close(() => print.report(chalk`\n\t{yellow Server closed.}\n\tRestarting!`));
+        models.forEach(releaseModel);
+      }
 
-    process.nextTick(serve);
+      process.nextTick(serve);
+    }
   }
 
-  require('./dev.sentry')((sentry, files, handler) => {
-    files.forEach(src => src.startsWith('server/models') && models.push(src));
+  require('./dev.sentry')([
+    './dist/*.js',
+    './server/models/*.js'], {
+    cwd,
+  }, (sentry, files, handler) => {
+    files.forEach(src => src.startsWith('server/models') && models.add(src));
     return handler((event, src) => {
       switch (event) {
         default: break;
         case 'add': {
-          if (src.startsWith('server/models')) models.push(src);
+          if (src.startsWith('server/models')) models.add(src);
           break;
         }
         case 'unlink': {
-          if (src.startsWith('server/models')) models.splice(models.indexOf(src), 1);
+          if (src.startsWith('server/models')) models.delete(src);
           break;
         }
         case 'change': {
-          if (src === 'dist/render.js') delete require.cache[`${cwd}/dist/render.js`];
+          if (src === 'dist/render.js') {
+            delete require.cache[`${cwd}/dist/render.js`];
+          } else if (src === 'dist/server.js') delete require.cache[`${cwd}/dist/server.js`];
 
-          delete require.cache[`${cwd}/dist/server.js`];
+          setTimeout(restartServer, 2500);
 
-          restartServer();
+          webpack.publish({
+            name: webpack.config.name,
+            target: 'server',
+            action: 'updating',
+            time: Date.now(),
+          });
+
           break;
         }
       }
     });
-  }, [
-    './dist/*.js',
-    './server/models/*.js'], {
-    print,
-    options: {
-      cwd,
-    },
   });
 
-  process.stdout.on('data', (chunk) => {
-    if (chunk !== null) {
-      print.report(chalk`\tstdout - chunk: ${chunk}`);
-      process.stdout.write(`data: ${chunk}`);
-    }
-  });
-
-  process.stdin.on('readable', () => {
-    const chunk = process.stdin.read();
-    if (chunk !== null) {
-      process.stdout.write(`data: ${chunk}`);
-    }
-  });
-
-  print.report(chalk`\tStarting Development Server.`);
   return serve();
 };

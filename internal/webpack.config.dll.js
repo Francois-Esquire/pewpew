@@ -1,25 +1,18 @@
 const { join } = require('path');
 const webpack = require('webpack');
+const GzipCompressionPlugin = require('compression-webpack-plugin');
+const BrotliCompressionPlugin = require('brotli-webpack-plugin');
+const FaviconGenerator = require('favicons-webpack-plugin');
+
+const config = require('../config');
 
 const targetPath = join(process.cwd(), 'dist');
 
 module.exports = [{
   context: process.cwd(),
+  devtool: 'source-map',
   entry: {
-    vendor: [
-      'redux',
-      'react',
-      'react-dom',
-      'react-apollo',
-      'react-helmet',
-      'react-modal',
-      'react-router',
-      'react-router-dom',
-      'react-redux',
-      'prop-types',
-      'whatwg-fetch',
-      'apollo-client',
-      'subscriptions-transport-ws'],
+    vendor: config.src.vendor,
   },
   resolve: {
     modules: ['node_modules'],
@@ -29,6 +22,7 @@ module.exports = [{
     path: targetPath,
     library: '[name]',
     libraryTarget: 'commonjs-module',
+    sourceMapFilename: 'dll/[filebase].map',
   },
   module: {
     rules: [{
@@ -57,5 +51,40 @@ module.exports = [{
     new webpack.DllPlugin({
       name: '[name]',
       path: join(targetPath, 'dll/[name].json'),
+    }),
+    new FaviconGenerator({
+      logo: config.src.favicon,
+      prefix: 'icons/',
+      title: 'Pew Pew',
+      background: '#fff',
+      inject: false,
+      emitStats: true,
+      statsFilename: 'icons/icons.json',
+      persistentCache: true,
+      icons: {
+        android: true,
+        appleIcon: true,
+        appleStartup: false,
+        coast: false,
+        favicons: true,
+        firefox: true,
+        opengraph: false,
+        twitter: false,
+        yandex: false,
+        windows: false,
+      },
+    }),
+    new GzipCompressionPlugin({
+      asset: '[path].gz[query]',
+      algorithm: 'gzip',
+      test: /\.(js|css)$/,
+      threshold: 12800,
+      minRatio: 0.8,
+    }),
+    new BrotliCompressionPlugin({
+      asset: '[path].br[query]',
+      test: /\.(js|css|svg)$/,
+      threshold: 12800,
+      minRatio: 0.8,
     })],
 }];

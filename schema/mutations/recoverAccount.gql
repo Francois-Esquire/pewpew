@@ -1,0 +1,3 @@
+mutation RecoverAccount($token: String!, $pass: String!, $word: String!) {
+  recoverAccount(token: $token, pass: $pass, word: $word)
+}

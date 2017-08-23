@@ -1,51 +1,33 @@
-import 'babel-polyfill';
 import 'whatwg-fetch';
 import React from 'react';
 import { render } from 'react-dom';
 import { BrowserRouter } from 'react-router-dom';
 import { ApolloProvider } from 'react-apollo';
 
-import configClient from './apollo';
-import configStore from './store';
-import Application from './components/Root';
+import 'styles/index.css';
 
-import './styles/index.css';
+import Application from 'components/Root';
+import configClient from 'apollo';
+import configStore from 'store';
+import installApp from './install';
 
 (function startup() {
   const {
-    __$$__,
-    pewpew: { hrefs },
-  } = window;
-
-  const app = {
-    upload(file) {
-      const body = new FormData();
-      body.append('file', file);
-
-      // eslint-disable-next-line compat/compat
-      return fetch(hrefs.upload, {
-        body,
-        method: 'POST',
-        headers: {},
-        credentials: 'same-origin',
-      });
-    },
-  };
+    hrefs,
+    appElement,
+    app,
+  } = installApp();
 
   const client = configClient({
     uri: hrefs.graphql,
     subUri: hrefs.graphqlSub,
-    params: {},
+    params: () => {},
   });
 
+  // eslint-disable-next-line no-undef
   const store = configStore(__$$__, {
     apollo: client.reducer(),
   }, [client.middleware()]);
-
-  const appElement = document.getElementById('app');
-
-  // delete window.pewpew;
-  // delete window.__$$__;
 
   if (process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line import/no-extraneous-dependencies
@@ -56,14 +38,22 @@ import './styles/index.css';
     const renderApp = () => render(<AppContainer>
       <ApolloProvider client={client} store={store}>
         <BrowserRouter>
-          <App app={app} appElement={appElement} />
+          <App app={app} />
         </BrowserRouter>
       </ApolloProvider>
     </AppContainer>, appElement);
 
     if (module && module.hot) {
-      module.hot.accept('./components/Root', () => {
-        App = require('./components/Root').default;
+      module.hot.accept('./index.js', () => {
+        require('./index.js');
+        window.location.reload();
+      });
+      module.hot.accept('./install.js', () => {
+        require('./install.js').default();
+        // window.location.reload();
+      });
+      module.hot.accept('components/Root', () => {
+        App = require('components/Root').default;
         renderApp();
       });
     }
@@ -73,7 +63,7 @@ import './styles/index.css';
 
   return render(<ApolloProvider client={client} store={store}>
     <BrowserRouter>
-      <Application app={app} appElement={appElement} />
+      <Application app={app} />
     </BrowserRouter>
   </ApolloProvider>, appElement);
 }());

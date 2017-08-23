@@ -16,8 +16,9 @@ export default function render(ctx, {
   networkInterface,
 }) {
   const client = new ApolloClient({
-    dataIdFromObject: o => o.id,
     networkInterface,
+    dataIdFromObject: o => o.id,
+    queryDeduplication: true,
     ssrMode: true,
   });
 
@@ -27,7 +28,7 @@ export default function render(ctx, {
 
   const app = (<StaticRouter location={ctx.path} context={ctx.state}>
     <ApolloProvider client={client} store={store}>
-      <Application isServer />
+      <Application app={{ hrefs }} />
     </ApolloProvider>
   </StaticRouter>);
 
@@ -44,6 +45,11 @@ export default function render(ctx, {
           return resolve();
         }
       }
+
+      if (ctx.state.view) print.log(`view: ${ctx.state.view}`);
+      if (ctx.state.channel) print.log(`channel: ${ctx.state.channel}`);
+      if (ctx.state.search) print.log(`search: ${ctx.state.search}`);
+      if (ctx.state.hash) print.log(`hash: ${ctx.state.hash}`);
 
       const window = {
         pewpew: { hrefs },

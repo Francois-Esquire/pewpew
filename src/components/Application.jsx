@@ -1,22 +1,26 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Switch, Route } from 'react-router-dom';
-import Modal from 'react-modal';
 import Helmet from 'react-helmet';
+
+import types from './proptypes/index';
 
 import Header from './Header';
 import Home from './Home';
-// import Nexus from './Nexus';
+import Prism from './Prism';
+import Modal from './Modal';
 
 class Application extends React.Component {
   getChildContext() {
-    const { modal } = this.props;
+    const { app, modal } = this.props;
     return {
       modal,
+      app,
     };
   }
   componentWillReceiveProps(Props) {
     const {
+      channel,
       modal,
       location,
     } = Props;
@@ -24,48 +28,27 @@ class Application extends React.Component {
     if (modal.isOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = 'unset';
 
+    const path = location.pathname.replace(/^\//, '');
+
+    if (path !== channel.url) channel.change(path);
     if (location.pathname !== this.props.location.pathname) {
       if (modal.view) modal.close();
     }
   }
   render() {
-    const { appElement, isServer, match, location, history, modal, channel } = this.props;
-    // eslint-disable-next-line no-confusing-arrow
-    // const ModalView = () => ;
-
+    const { app, staticContext, channel } = this.props;
     return (<main id="view">
-      <Header channel={channel.url} openMenu={this.openMenu} />
+      <Header channel={channel} />
       <Switch>
-        <Route
-          exact
-          path="/"
-          render={() => <Home history={history} channel={channel} />} />
-        {/* <Route
-          path="/:channel"
-          render={({ match: { params } }) => (<Nexus channel={params.channel} />)} /> */}
+        <Route exact path="/" component={Home} />
+        <Route path="/:channel" component={Prism} />
       </Switch>
       <footer>
-        <h6><a href="https://github.com/Francois-Esquire/pewpew">github</a></h6>
+        <h6><a href={app.hrefs.github}>github</a></h6>
       </footer>
-      <Modal
-        contentLabel={modal.label}
-        role={modal.role}
-        isOpen={modal.isOpen}
-        onAfterOpen={modal.onOpen}
-        onRequestClose={() => modal.onClose(modal.close)}
-        closeTimeoutMS={modal.delay}
-        shouldCloseOnOverlayClick
-        style={modal.style}
-        className={modal.styleNames.className}
-        portalClassName={modal.styleNames.portalClassName}
-        overlayClassName={modal.styleNames.overlayClassName}
-        bodyOpenClassName={modal.styleNames.bodyOpenClassName}
-        appElement={appElement}
-        ariaHideApp>{modal.isOpen && modal.view ?
-          (<modal.view modal={modal} match={match} location={location} history={history} />) : null
-        }</Modal>
+      <Modal appElement={app.appElement} />
       <Helmet
-        encodeSpecialCharacters={!isServer}
+        encodeSpecialCharacters={!!staticContext}
         titleTemplate="%s | Pew Pew">
         <title itemProp="name" lang="en">Shoot</title>
       </Helmet>
@@ -74,36 +57,28 @@ class Application extends React.Component {
 }
 
 Application.propTypes = {
-  appElement(props, propName, componentName) {
-    if (!props.isServer && props[propName] instanceof Element === false) {
-      return new Error(`Invalid prop '${propName}' supplied to '${componentName}'. Validation failed.`);
-    }
-    return null;
-  },
-  isServer: PropTypes.bool,
-  // eslint-disable-next-line react/forbid-prop-types
-  match: PropTypes.object,
-  // eslint-disable-next-line react/forbid-prop-types
-  location: PropTypes.object,
-  // eslint-disable-next-line react/forbid-prop-types
-  history: PropTypes.object,
-  // eslint-disable-next-line react/forbid-prop-types
-  modal: PropTypes.object,
+  app: PropTypes.shape({
+    hrefs: PropTypes.object,
+    appElement: types.Element,
+    upload: PropTypes.func,
+  }),
   // eslint-disable-next-line react/forbid-prop-types
   channel: PropTypes.object,
+  // eslint-disable-next-line react/forbid-prop-types
+  modal: PropTypes.object,
 };
 
 Application.defaultProps = {
-  appElement: undefined,
-  isServer: false,
-  match: {},
-  location: {},
-  history: {},
-  modal: {},
+  app: {
+    appElement: types.defaults.Element,
+    upload: () => Promise.resolve(),
+  },
   channel: {},
+  modal: {},
 };
 
 Application.childContextTypes = {
+  app: PropTypes.object,
   modal: PropTypes.object,
 };
 

@@ -1,59 +1,60 @@
 const Koa = require('koa');
 const KoaSubdomain = require('koa-subdomain');
 const KoaRouter = require('koa-router');
+const KoaCors = require('kcors');
 const KoaHelmet = require('koa-helmet');
 const KoaSession = require('koa-session');
 const KoaBody = require('koa-bodyparser');
 const KoaSend = require('koa-send');
 const KoaMulter = require('koa-multer');
 const KoaFavicon = require('koa-favicon');
+const KoaUserAgent = require('koa-useragent');
 const { graphqlKoa, graphiqlKoa } = require('graphql-server-koa');
 const GridStorage = require('multer-gridfs-storage');
-const ms = require('microseconds');
+const μs = require('microseconds');
 
 module.exports = function appPrimer({
   routes,
   middleware,
   context,
-  config,
   schema,
-  debug = false,
+  assets,
 }) {
   const app = new Koa();
   const router = new KoaRouter();
 
-  app.keys = config.keys;
+  app.keys = config.secrets.get('keys');
   app.subdomainOffset = config.host.split('.').length;
 
   Object.assign(app.context, context);
 
-  const graphql = graphqlKoa(async ctx => ({
+  const gql = graphqlKoa(async ctx => ({
     schema,
     rootValue: await ctx.helpers.getRootValue(ctx),
     context: ctx,
-    debug,
+    debug: config.debug,
   }));
 
-  const graphiql = graphiqlKoa({
+  const giql = graphiqlKoa({
     endpointURL: config.hrefs.graphql,
     subscriptionsEndpoint: config.hrefs.graphqlSub,
   });
 
   routes.push({
     path: '/graphql',
-    verbs: ['get', 'post'],
-    use: graphql,
+    verbs: ['post'],
+    use: gql,
   }, {
     path: '/graphiql',
     verbs: ['get'],
-    use: graphiql,
+    use: giql,
   });
 
   const api = new KoaSubdomain().use(
     config.domains.graphql,
     new KoaRouter()
-      .get(`/${config.domains.graphiql}`, graphiql)
-      .post('*', graphql)
+      .get(`/${config.domains.graphiql}`, giql)
+      .post('*', gql)
       .routes());
 
   const content = new KoaSubdomain().use(
@@ -76,7 +77,7 @@ module.exports = function appPrimer({
         ctx.body = ctx.db.gfs.createReadStream({ _id });
 
         ctx.body.on('error', (err) => {
-          console.log('Got error while processing stream ', err.message);
+          print.log('Got error while processing stream ', err.message);
           ctx.res.end();
         });
       } catch (e) { /**/ }
@@ -97,7 +98,7 @@ module.exports = function appPrimer({
         files: 1,
       },
       preservePath: true,
-    }).single('file'), async (ctx) => {
+    }).single('file')).use(async (ctx) => {
       ctx.res.statusCode = 200;
     }).routes());
 
@@ -107,7 +108,6 @@ module.exports = function appPrimer({
   middleware.forEach(ware => app.use(ware));
 
   app
-    .use(KoaHelmet())
     .use(async (ctx, next) => {
       try {
         await next();
@@ -117,26 +117,19 @@ module.exports = function appPrimer({
       }
     })
     .use(async (ctx, next) => {
-      const start = ms.now();
+      const start = μs.now();
       await next();
-      const end = ms.parse(ms.since(start));
+      const end = μs.parse(μs.since(start));
       const total = end.microseconds + (end.milliseconds * 1e3) + (end.seconds * 1e6);
       ctx.set('Response-Time', `${total / 1e3}ms`);
     })
+    .use(KoaCors({
+      allowMethods: ['GET'],
+      credentials: true,
+      keepHeadersOnError: true,
+    }))
+    .use(KoaHelmet())
     .use(KoaFavicon(config.paths.favicon))
-    .use(async (ctx, next) => {
-      try {
-        if (ctx.path !== '/') {
-          // if (/\.(svg|css|js)$/.test(ctx.path)) ctx.set({ Etag: ctx.assets.hash });
-
-          const root = /^\/(images)\//.test(ctx.path) ?
-            config.paths.assets : config.paths.public;
-          const immutable = !debug;
-          await KoaSend(ctx, ctx.path, { root, immutable });
-        }
-      } catch (e) { /**/ }
-      await next();
-    })
     .use(KoaSession({
       key: 'persona',
       maxAge: 86400000,
@@ -144,12 +137,35 @@ module.exports = function appPrimer({
       httpOnly: true,
       signed: true,
       rolling: false,
-    }, app), async (ctx, next) => {
-      ctx.session.parcel = 'parcel';
-      ctx.state.token =
-        ctx.cookies.get('token') ||
+    }, app))
+    .use(KoaUserAgent)
+    .use(async (ctx, next) => {
+      if (/\.(ico|png|svg|css|js|json)$/.test(ctx.path)) {
+        if (assets.paths.indexOf(ctx.path) >= 0) print.log(`\tmatching path: ${ctx.path}`);
+        // ctx.set('Etag', ctx.assets.hash);
+        ctx.set('Service-Worker-Allowed', '/');
+        if (ctx.path === '/favicon.ico') {
+          if (ctx.status === 404) ctx.status = 204;
+        } else {
+          try {
+            const root = /^\/(images)\//.test(ctx.path) ?
+              config.paths.assets : config.paths.public;
+            const immutable = !config.debug;
+            await KoaSend(ctx, ctx.path, { root, immutable });
+          } catch (e) { /**/ }
+        }
+      } else await next();
+    })
+    .use(async (ctx, next) => {
+      if (typeof ctx.session.visits === 'number') ctx.session.visits += 1;
+      else ctx.session.visits = 0;
+      ctx.state.access =
+        ctx.session.access ||
         ctx.headers.authorization;
-      return next();
+      // print.log(`access token: ${ctx.state.access}`);
+      // print.inspect(ctx.userAgent);
+      // print.inspect(ctx.session);
+      await next();
     })
     .use(KoaBody())
     .use(api.routes())

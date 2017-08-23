@@ -1,11 +1,12 @@
-import { withRouter } from 'react-router-dom';
-import { compose } from 'react-apollo';
-import { connect } from 'react-redux';
 import { bindActionCreators } from 'redux';
+import { connect } from 'react-redux';
+import { withRouter } from 'react-router-dom';
+import { compose, withApollo } from 'react-apollo';
 
 import Application from './Application';
 
 const Root = compose(
+  withApollo,
   withRouter,
   connect(
     // eslint-disable-next-line prefer-arrow-callback

@@ -3,7 +3,7 @@ export default function channel(state = {
 }, action) {
   if (/^@@channel/.test(action.type)) {
     const { url } = action;
-    return { url };
+    return { url: url.replace(/^(\/)/, '').toLowerCase() };
   }
   return state;
 }

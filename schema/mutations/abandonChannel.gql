@@ -1,0 +1,3 @@
+mutation AbandonChannel($id: ID!) {
+  abandonChannel(id: $id)
+}

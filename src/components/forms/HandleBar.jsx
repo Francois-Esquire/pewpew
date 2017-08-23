@@ -1,45 +1,108 @@
-import React, { Component } from 'react';
+import React from 'react';
 import { graphql } from 'react-apollo';
+import { Field, reduxForm } from 'redux-form';
 import PropTypes from 'prop-types';
 
-import mutation from '../../../schema/mutations/createHandle.gql';
+import mutation from 'mutations/signup.gql';
 
-class HandleBar extends Component {
-  constructor(props) {
-    super(props);
+// class HandleBar extends React.PureComponent {
+//   constructor(props) {
+//     super(props);
+//
+//     this.rules = new Map();
+//     this.onSubmit = this.onSubmit.bind(this);
+//     this.onChange = this.onChange.bind(this);
+//
+//     this.state = {
+//       email: '',
+//       handle: '',
+//       password: '',
+//     };
+//   }
+//   onSubmit(event) {
+//     event.preventDefault();
+//     const { handle, email, password } = this.state;
+//     this.props.mutate({
+//       variables: {
+//         handle,
+//         email,
+//         password,
+//       },
+//     }).then(({ data: { signup } }) => {
+//       console.log(signup);
+//     }).catch((result) => {
+//       console.log(result);
+//     });
+//   }
+//   onChange({ target: { id, value } }) {
+//     return this.setState({ [id]: value });
+//   }
+//   render() {
+//     const { state: { handle, email, password }, onChange, onSubmit } = this;
+//     return (<form className="create-handle" onSubmit={onSubmit}>
+//       <div>
+//         <label htmlFor="handle">Grab A Handle</label>
+//         <input id="handle" type="text" value={handle} onChange={onChange} required />
+//       </div>
+//       <div>
+//         <label htmlFor="email">Set Your Email</label>
+//         <input id="email" type="email" value={email} onChange={onChange} required />
+//       </div>
+//       <div>
+//         <label htmlFor="password">Password</label>
+//         <input id="password" type="password" value={password} onChange={onChange} required />
+//       </div>
+//       <button type="submit">Start</button>
+//     </form>);
+//   }
+// }
+//
+// HandleBar.propTypes = {
+//   mutate: PropTypes.func,
+// };
+//
+// HandleBar.defaultProps = {
+//   mutate: () => Promise.resolve({ signup: {} }),
+// };
 
-    this.onSubmit = this.onSubmit.bind(this);
-    this.onChange = this.onChange.bind(this);
+const renderField = (props) => {
+  const { id, input, label, type, meta: { touched, error, warning } } = props;
 
-    this.state = {
-      handle: '',
-    };
-  }
-  onSubmit(event) {
-    event.preventDefault();
-    this.props.createHandle(this.state.handle);
-  }
-  onChange({ target: { value: handle } }) {
-    return this.setState({ handle });
-  }
-  render() {
-    const { state: { handle }, onChange, onSubmit } = this;
-    return (<form className="create-handle" onSubmit={onSubmit}>
-      <div>
-        <label htmlFor="handle">Grab A Handle</label>
-        <input id="handle" type="text" value={handle} onChange={onChange} />
-      </div>
-      <button>Start</button>
-    </form>);
-  }
-}
-
-HandleBar.propTypes = {
-  createHandle: PropTypes.func,
+  return (<div>
+    <label htmlFor={id}>{label}</label>
+    <input id={id} {...input} type={type} />
+    {touched && ((error && <span>{error}</span>) || (warning && <span>{warning}</span>))}
+  </div>);
 };
 
-HandleBar.defaultProps = {
-  createHandle: () => Promise.resolve({}),
+const HandleBarForm = (props) => {
+  const { handleSubmit, pristine, reset, submitting } = props;
+  return (
+    <form onSubmit={handleSubmit}>
+      <Field id="handle" name="handle" type="text" component={renderField} label="Username" />
+      <Field id="email" name="email" type="email" component={renderField} label="Email" />
+      <Field id="password" name="password" type="password" component={renderField} label="Age" />
+      <button type="submit" disabled={pristine || submitting}>Submit</button>
+    </form>
+  );
 };
 
-export default graphql(mutation)(HandleBar);
+const SignUp = graphql(mutation, {
+  alias: 'SignUp',
+  props: ({ mutate }) => ({
+    onSubmit: (variables) => {
+      console.log(variables);
+      return mutate({ variables }).catch(errors => console.log(errors));
+    },
+    onSubmitSuccess(result) {
+      console.log(result);
+    },
+    onSubmitFail(result) {
+      console.log(result);
+    },
+  }),
+})(reduxForm({
+  form: 'HandleBar',
+})(HandleBarForm));
+
+export default SignUp;

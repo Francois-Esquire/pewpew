@@ -5,7 +5,7 @@ export default function createClient({ uri, subUri, params }) {
   const subscriptionInterface = new SubscriptionClient(subUri, {
     lazy: true,
     reconnect: true,
-    connectionParams: () => params,
+    connectionParams: params,
     connectionCallback: error => console.log(error),
   });
 
@@ -21,7 +21,7 @@ export default function createClient({ uri, subUri, params }) {
     applyMiddleware(req, next) {
       if (!req.options.headers) req.options.headers = {};
       const token = localStorage.getItem('session.token');
-      req.options.headers.Authorization = token ? `JWT ${token}` : null;
+      req.options.headers.Authorization = token ? `Bearer ${token}` : null;
       next();
     },
   }]);

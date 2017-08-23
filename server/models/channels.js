@@ -26,10 +26,10 @@ ChannelSchema.pre('save', function save(next) {
 
 ChannelSchema.statics = {
   search(count, tags = []) {
-    return this.limit(count).find({
+    return this.find({
       $and: [
         { private: false },
-        { $in: { tags } }],
+        { tags: { $in: tags } }],
     });
   },
   async publish({ url, title, description, tags }, user) {

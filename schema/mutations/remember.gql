@@ -1,0 +1,13 @@
+mutation RememberMoment(
+  $channel: ID!
+  $content: String!
+  $kind: Types!
+  ) {
+    remember(channel: $channel, content: $content, kind: $kind) {
+      id
+      by
+      kind
+      content
+      channel
+    }
+  }

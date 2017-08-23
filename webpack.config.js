@@ -1,36 +1,21 @@
-const { join } = require('path');
 const webpack = require('webpack');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin');
-const FaviconGenerator = require('favicons-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const ServiceWorkerWebpackPlugin = require('serviceworker-webpack-plugin');
 const GzipCompressionPlugin = require('compression-webpack-plugin');
 const BrotliCompressionPlugin = require('brotli-webpack-plugin');
 
 const pkg = require('./package.json');
 const config = require('./config');
 
-const debug = process.env.NODE_ENV !== 'production';
-
-const vendor = [
-  'redux',
-  'react',
-  'react-dom',
-  'react-apollo',
-  'react-helmet',
-  'react-modal',
-  'react-router',
-  'react-router-dom',
-  'react-redux',
-  'prop-types',
-  'whatwg-fetch',
-  'apollo-client',
-  'subscriptions-transport-ws'];
+const debug = config.debug;
 
 const resolve = {
   modules: ['node_modules'],
   descriptionFiles: ['package.json'],
   extensions: ['*', '.js', '.es', '.jsx', '.json', '.gql', '.css'],
+  alias: config.paths,
 };
 
 const resolveLoader = {
@@ -57,10 +42,11 @@ const rules = {
   },
   url: {
     test: /\.(png|jpg|gif|svg|eot|ttf|woff|woff2)$/,
-    loader: 'url-loader',
+    loader: 'url',
     options: {
       limit: 10000,
     },
+    exclude,
   },
 };
 
@@ -77,39 +63,47 @@ const commonPlugins = [
     },
   })];
 
+const cacheName = new Date().toISOString();
 const plugins = commonPlugins.concat([
   new webpack.optimize.CommonsChunkPlugin({
     names: ['vendor', 'manifest'],
   }),
-  new FaviconGenerator({
-    logo: `${__dirname}/assets/images/pewpew.svg`,
-    prefix: 'icons/',
-    title: 'Pew Pew',
-    inject: false,
-    emitStats: true,
-    statsFilename: 'stats/icons.json',
-    icons: {
-      android: true,
-      appleIcon: true,
-      appleStartup: false,
-      coast: false,
-      favicons: true,
-      firefox: true,
-      opengraph: false,
-      twitter: false,
-      yandex: false,
-      windows: false,
+  // new webpack.DllReferencePlugin({
+  //   context: process.cwd(),
+  //   // eslint-disable-next-line import/no-dynamic-require
+  //   manifest: require(`${config.paths.dll}/vendor.json`),
+  // }),
+  new CopyWebpackPlugin([
+    // { from: config.paths.dll, to: `${config.paths.dist}/public/${debug ? '' : 'js/'}` },
+    { from: `${config.paths.dist}/icons`, to: `${config.paths.dist}/public/icons/` }],
+  { ignore: ['**/.*', '*.json', '*.map', '*.webapp'] }),
+  new ServiceWorkerWebpackPlugin({
+    entry: config.src.service,
+    filename: 'workers/service-worker.js',
+    excludes: ['**/.*', '**/*.map', 'icons/*.json', 'workers/*', 'hot*'],
+    transformOptions(options) {
+      return Object.assign(options, {
+        CACHE_NAME: cacheName,
+        assets: options.assets.filter((src) => {
+          switch (true) {
+            default: return true;
+            case src.startsWith('hot'): return false;
+            case src.startsWith('workers'): return false;
+            case src.startsWith('icons'): return false;
+          }
+        }),
+      });
     },
   }),
   new BundleAnalyzerPlugin({
     analyzerMode: debug ? 'server' : 'static',
     analyzerHost: '127.0.0.1',
     analyzerPort: 3001,
-    reportFilename: `${__dirname}/dist/stats/report.html`,
+    reportFilename: config.src.stats.report,
     defaultSizes: 'parsed',
     openAnalyzer: false,
     generateStatsFile: !debug,
-    statsFilename: `${__dirname}/dist/stats/bundle.json`,
+    statsFilename: config.src.stats.bundle,
     statsOptions: null,
     logLevel: 'info',
   })]);
@@ -135,6 +129,7 @@ rules.css = {
     use: [{
       loader: 'css',
       options: {
+        sourceMap: true,
         importLoaders: 1,
       },
     }, 'postcss'],
@@ -169,11 +164,6 @@ if (debug) {
       sourceMap: true,
       warningsFilter: () => false,
     }),
-    // new webpack.DllReferencePlugin({
-    //   context: process.cwd(),
-    //   manifest: require(join(config.paths.dll, 'vendor.json')),
-    // }),
-    // new CopyWebpackPlugin([{ from: config.paths.dll, to: `${config.paths.dist}/public/js/` }], { ignore: ['*.json'] }),
     new GzipCompressionPlugin({
       asset: '[path].gz[query]',
       algorithm: 'gzip',
@@ -190,6 +180,28 @@ if (debug) {
     extractCSS);
 }
 
+// plugins.push(function writeManifestJson() {
+//   const fs = require('fs');
+//   const util = require('util');
+//   // this.plugin('emit', (compilation, callback) => {
+//   //   const compKeys = Object.keys(compilation);
+//   //   // const assetKeys = util.inspect(compilation.assets[Object.keys(compilation.assets)[0]]);
+//   //   const fsKeys = util.inspect(compilation.inputFileSystem.fileSystem);
+//   //   // const fsJSONKeys = util.inspect(compilation.inputFileSystem._readJsonStorage);
+//   //   console.log('\n\temit: ', compKeys, fsKeys);
+//   //   // console.log(compilation.inputFileSystem._readJsonStorage());
+//   //   callback();
+//   // });
+//   this.plugin('done', (stats) => {
+//     const s = stats.toJson();
+//     console.log(Object.keys(s));
+//     console.log(s.assetsByChunkName);
+//     console.log(s.assets);
+//     // console.log(util.inspect(stats));
+//     // fs.writeFileSync(config.src.manifest, JSON.stringify(stats.toJson()));
+//   });
+// });
+
 module.exports = {
   resolve,
   resolveLoader,
@@ -199,21 +211,20 @@ module.exports = {
   target: 'web',
   context: __dirname,
   entry: {
-    vendor,
-    client: (debug ?
-      ['webpack-hot-middleware/client?path=__hmr&timeout=2000&name=app', 'react-hot-loader/patch'] :
-      []).concat(join(config.paths.src, 'index.js')),
+    vendor: config.src.vendor,
+    client: config.src.client,
   },
   output: {
     filename: debug ? '[name].[hash].js' : 'js/[name].[hash].js',
     chunkFilename: debug ? '[name].[hash].js' : 'js/[name].[chunkhash].js',
-    sourceMapFilename: 'maps/[name].[chunkhash].js.map',
+    sourceMapFilename: 'maps/[filebase].map',
     hotUpdateChunkFilename: 'hot.[hash].js',
     hotUpdateMainFilename: 'hot-update.[hash].json',
-    path: join(config.paths.dist, 'public'),
-    publicPath: `${config.protocol}${config.host}`,
+    path: config.paths.public,
+    publicPath: `${config.protocol}${config.host}${debug ? '/' : ''}`,
   },
   module: {
+    // noParse: /apollo-client|graphql-tag/,
     rules: [rules.json, rules.url, rules.css, rules.gql, {
       test: /\.(es|es6|js|jsx)$/,
       use: ([{
@@ -224,7 +235,9 @@ module.exports = {
           exports: 'default',
           onwarn: () => false,
           external:
-            id => (/\.(css|gql|png|jpg|jpeg|gif|svg|eot|ttf|woff|woff2)/.test(id) || !!pkg.dependencies[id]),
+            id => (/\.(css|gql|png|jpg|jpeg|gif|svg|eot|ttf|woff|woff2)$/.test(id) ||
+              id.startsWith('serviceworker-webpack-plugin') ||
+              !!pkg.dependencies[id]),
           plugins: [
             require('rollup-plugin-replace')({
               'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),

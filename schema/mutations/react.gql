@@ -1,0 +1,14 @@
+mutation ReactToMoment(
+  $id: ID!
+  $content: String!
+  $kind: Types!
+  ) {
+    react(id: $id, content: $content, kind: $kind) {
+      id
+      by
+      kind
+      content
+      channel
+      thread
+    }
+  }

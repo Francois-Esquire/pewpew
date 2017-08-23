@@ -22,7 +22,16 @@ module.exports = {
     'react/prefer-stateless-function': [1, { ignorePureComponents: true }],
     'react/no-multi-comp': 0,
     'react/jsx-closing-bracket-location': [1, 'after-props'],
-    'react/prop-types': [1, { ignore: ['dispatch', 'data', 'match', 'location', 'history'] }],
+    'react/prop-types': [1, {
+      ignore: [
+        'dispatch',
+        'data',
+        'mutate',
+        'match',
+        'location',
+        'history',
+        'staticContext'],
+    }],
     'react/jsx-filename-extension': [1, { extensions: ['.js', '.jsx'] }],
     'linebreak-style': 1,
     'global-require': 0,
@@ -43,11 +52,14 @@ module.exports = {
       node: {
         paths: [
           __dirname,
+          'schema',
+          'src',
           'node_modules'],
       },
     },
   },
   globals: {
-    SERVER: false,
+    config: true,
+    print: true,
   },
 };

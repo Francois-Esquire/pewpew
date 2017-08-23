@@ -30,6 +30,10 @@ const PostSchema = new mongoose.Schema({
         'LINK'],
     },
   },
+  thread: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post',
+  },
 }, {
   toObject: {
     getters: false,
@@ -52,10 +56,28 @@ PostSchema.statics = {
   findByUserId(by) {
     return this.find({ by });
   },
-  async create(by, channel, content, kind) {
+  async create(user, channel, content, kind) {
     const Moment = this;
-    const moment = await new Moment({ by, channel, content, kind }).save();
+    const moment = await new Moment({ by: user.id, channel, content, kind }).save();
     return moment;
+  },
+  async update(id, user, content, kind) {
+    const Moment = this;
+    // verify user is owner
+    const moment = await Moment.findOneAndUpdate({ id }, { $set: { content, kind } });
+    return moment;
+  },
+  async react(id, user, content, kind) {
+    const Moment = this;
+    const moment = await Moment.findMessage(id);
+    const reaction = await new Moment({
+      by: user.id,
+      channel: moment.channel,
+      thread: moment.id,
+      content,
+      kind,
+    }).save();
+    return reaction;
   },
   async forget(id, user) {
     const moment = await this.findMessage(id);

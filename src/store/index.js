@@ -1,4 +1,5 @@
 import { createStore, combineReducers, applyMiddleware, compose } from 'redux';
+import { reducer as form } from 'redux-form';
 
 import rootReducers from './reducers';
 
@@ -7,7 +8,7 @@ export default function configureStore(
   reducers = {},
   middleware = []) {
   const initialState = state || undefined;
-  const rootReducer = combineReducers({ ...reducers, ...rootReducers });
+  const rootReducer = combineReducers({ form, ...reducers, ...rootReducers });
   const enhancers = [applyMiddleware(...middleware)];
 
   if (process.env.NODE_ENV !== 'production') {
@@ -24,11 +25,9 @@ export default function configureStore(
     if (module && module.hot) {
       module.hot.accept('./reducers', () => {
         const nextReducers = require('./reducers').default;
+        const nextRootReducer = combineReducers({ form, ...reducers, ...nextReducers });
 
-        store.replaceReducer(combineReducers({
-          ...reducers,
-          ...nextReducers,
-        }));
+        store.replaceReducer(nextRootReducer);
       });
     }
 

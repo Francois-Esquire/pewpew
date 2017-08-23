@@ -13,7 +13,7 @@ module.exports = {
   targets: [{ dest: 'dist/server.js', format: 'cjs' }],
   sourceMap: false,
   interop: false,
-  external: Object.keys(pkg.dependencies).concat(['http', 'fs', 'os', 'cluster']),
+  external: Object.keys(pkg.dependencies).concat(['http', 'fs', 'os', 'cluster', 'path']),
   plugins: [
     gql({
       introspect: 'dist/schema.json',

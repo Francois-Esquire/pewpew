@@ -5,7 +5,8 @@ const buble = require('rollup-plugin-buble');
 const gql = require('rollup-plugin-graphql');
 
 const pkg = require('../package.json');
-const externals = Object.keys(pkg.dependencies).concat('react-dom/server');
+
+const externals = new Set(Object.keys(pkg.dependencies).concat('react-dom/server'));
 
 module.exports = {
   entry: 'src/components/Application.jsx',
@@ -13,9 +14,8 @@ module.exports = {
     // { dest: 'src/appl.js', format: 'cjs' },
     { dest: 'src/appl.es', format: 'es' }],
   sourceMap: false,
-  external: id => {
-    return /\.(css|png|jpg|jpeg|gif|svg|eot|ttf|woff|woff2)$/.test(id) || (externals.indexOf(id) >= 0);
-  },
+  external: id =>
+    (/\.(css|png|jpg|jpeg|gif|svg|eot|ttf|woff|woff2)$/.test(id) || externals.has(id)),
   plugins: [
     replace({
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),

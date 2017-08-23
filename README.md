@@ -7,7 +7,7 @@ Inspired by a talk I gave on GraphQL at [ReactNYC meetup \#7][meetup].
 
 ![welcome home][landing]
 
-Currently a work in progress - requires node.js (v7.6 and up), mongodb and redis.
+Currently a work in progress - requires node.js (v8 and up # util.promisify), mongodb and redis.
 
 ## Quick start
 ```bash
@@ -22,17 +22,25 @@ Currently a work in progress - requires node.js (v7.6 and up), mongodb and redis
 
 nmp install
 
+# ///
 ### for development:
+# \\\
 
 npm run dev
 
+### or
+
+npm run mock
+
+# ///
 ### to build your project:
+# \\\
 
 npm run build
 ```
 
 ## Usage
-Customizing much of the behavior, from builds to client-side endpoints for your api, are configurable in one place. The way you set it up will trickle down throughout both the client/server facets of your app.
+There's a handy configuration file available - consider this a reference point for the project, a behavioral blueprint of customizable values for both builds and runs that will trickle down throughout the app.
 
 config/index.js
 ```javascript
@@ -54,10 +62,9 @@ More Usage & Feature Previews Coming Shortly...
 [GraphQL Language Cheat Sheet - Medium](https://wehavefaces.net/graphql-shorthand-notation-cheatsheet-17cd715861b6) by [Hafiz Ismail](https://wehavefaces.net/@sogko)
 
 ### TODO
-- [ ] Ubiquify Config - 45%
+- [ ] Ubiquify Config - 75%
 - [ ] Documentation - 10%
 - [ ] Testing - 0.5%
-- [ ] Polish Child Process Clustering, Both For Development & Production - 25%
 
 [meetup]: https://www.meetup.com/ReactNYC/events/240619695/
 [slides]: http://slides.com/michaeltobia/graphql/

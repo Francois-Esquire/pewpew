@@ -1,51 +1,28 @@
-const fs = require('fs');
+const cluster = require('cluster');
 
-module.exports = async function start({
-  protocol,
-  domains,
-  host,
-  port,
-  paths,
-  hrefs,
-  keys,
-  urls,
-  print,
-}) {
+module.exports = async function start() {
+  const serve = require('../dist/server');
+  const emails = require('../dist/emails');
   const render = require('../dist/render');
-  const server = require('../dist/server');
-  const css = [];
-  const scripts = [];
-  const meta = [];
+  const assets = require('../dist/assets');
 
-  fs.stat(`${paths.public}/stats/icons.json`, (error) => {
-    if (error) print.warn('Favicon stats were not found');
-    else meta.push(require('../dist/public/stats/icons.json').html.join(''));
-  });
-
-  const { assetsByChunkName, hash } = require('../dist/stats/bundle.json');
-
-  Object.keys(assetsByChunkName)
-    .forEach(chunk => assetsByChunkName[chunk].forEach((src) => {
-      if (/js\//.test(src)) {
-        if (src.startsWith('js/manifest')) scripts.unshift(src);
-        else scripts.push(src);
-      } else if (/css\//.test(src)) css.push(src);
-    }));
-
-  // eslint-disable-next-line no-confusing-arrow
-  scripts.sort(src => src.startsWith('client') ? 1 : -1);
-
-  return server({
-    protocol,
-    domains,
-    host,
-    port,
-    paths,
-    hrefs,
-    keys,
-    urls,
+  const server = await serve({
+    emails,
     render,
-    assets: { css, scripts, meta, hash },
-    print,
+    assets,
   });
+
+  if (cluster.isWorker) {
+    process.on('message', (message) => {
+      const [type, action] = message.split('.');
+      switch (type) {
+        default: return process.send(`${type}.${action}`);
+        case 'restart': {
+          return cluster.worker.kill();
+        }
+      }
+    });
+  }
+
+  return server;
 };

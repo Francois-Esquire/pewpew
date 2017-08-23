@@ -7,13 +7,13 @@ require('./models/posts');
 require('./models/channels');
 require('./models/users');
 
-module.exports = async (mongodbUri, { debug, options }) => {
+module.exports = async (mongodbUri, options) => {
   const mongodbOptions = options || {
     useMongoClient: true,
     reconnectTries: Number.MAX_VALUE,
   };
 
-  mongoose.set('debug', debug);
+  mongoose.set('debug', config.debug);
 
   const connection = await mongoose.connect(mongodbUri, mongodbOptions);
   const gfs = Grid(connection.db, mongoose.mongo);

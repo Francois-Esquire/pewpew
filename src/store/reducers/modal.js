@@ -1,5 +1,7 @@
 import ReactModal from 'react-modal';
 
+import { MODAL_CLOSE, MODAL_OPEN } from '../actions/modal';
+
 const defaults = {
   isOpen: false,
   view: null,
@@ -31,11 +33,13 @@ export default function modal(state = defaults, action) {
       style = {},
     } = action;
 
-    if (type === '@@modal/close') return {
-      ...state,
-      // view,
-      isOpen: false,
-    };
+    if (type === MODAL_CLOSE) {
+      return {
+        ...state,
+        // view,
+        isOpen: false,
+      };
+    }
 
     return {
       ...state,
@@ -45,7 +49,7 @@ export default function modal(state = defaults, action) {
       delay,
       onOpen,
       onClose,
-      isOpen: type === '@@modal/open' ? !!view : type === '@@modal/close' && false,
+      isOpen: type === MODAL_OPEN ? !!view : type === '@@modal/close' && false,
       styleNames: {
         ...defaults.styleNames,
         ...styleNames,
